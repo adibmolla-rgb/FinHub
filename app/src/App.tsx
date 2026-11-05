@@ -423,8 +423,8 @@ export default function App() {
               onOpen={(symbol) => submit(symbol)}
             />
           </Panel>
-          <Panel code="HELP" title="Commands" active={active === 'HELP'} className="grid__help">
-            <HelpPanel />
+          <Panel code="HELP" title="Commands — click an example to run it" active={active === 'HELP'} className="grid__help">
+            <HelpPanel onRun={(cmd) => submit(cmd)} />
           </Panel>
           <Panel code="LOG" title="Activity" active={active === 'LOG'} className="grid__log">
             <LogPanel entries={log} />

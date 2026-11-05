@@ -23,5 +23,7 @@
     "noFallthroughCasesInSwitch": true,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src"]
+  "include": ["src"],
+  // Runs under Node in vitest (uses node:fs); not part of the app bundle or its type check.
+  "exclude": ["src/names.test.ts"]
 }

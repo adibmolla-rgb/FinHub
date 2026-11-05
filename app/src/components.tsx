@@ -114,7 +114,7 @@ function EngineCell({ engine, install, onInstall }: { engine: EngineStatus; inst
   )
 }
 
-export function HelpPanel() {
+export function HelpPanel({ onRun }: { onRun?: (command: string) => void }) {
   return (
     <table className="table">
       <thead>
@@ -128,7 +128,11 @@ export function HelpPanel() {
         {COMMANDS.map((c) => (
           <tr key={c.name}>
             <td>
-              <code>{c.usage}</code>
+              {onRun && c.status === 'ready' && !c.usage.includes('…') ? (
+                <button className="link" title="Run this example" onClick={() => onRun(c.usage.split('  ·  ')[0])}>{c.usage}</button>
+              ) : (
+                <code>{c.usage}</code>
+              )}
             </td>
             <td className="muted">{c.description}</td>
             <td>{c.status === 'ready' ? <span className="ok">ready</span> : <span className="muted">planned</span>}</td>
