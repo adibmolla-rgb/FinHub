@@ -1,9 +1,10 @@
+import { useState } from 'react'
 import type { Load } from './useTicker'
 import {
   ApiError, formatValue, RANGES, timeAgo,
   type History, type News, type Profile, type Quote, type QuoteKey, type Range, type Receipt,
 } from './api'
-import { PriceChart } from './Chart'
+import { INDICATORS, PriceChart, type Indicator } from './Chart'
 import { Panel } from './components'
 
 type Meta = { provider_name: string; fetched_at: string; fallback_used: boolean; attempts: { provider: string; ok: boolean; error: string | null }[] }
@@ -102,8 +103,27 @@ export function QuoteStrip({ symbol, quote, profile, onReceipt }: {
   )
 }
 
+function loadIndicators(): Indicator[] {
+  try {
+    const v = JSON.parse(localStorage.getItem('finhub.indicators') ?? '["SMA50"]')
+    return Array.isArray(v) ? v.filter((x): x is Indicator => (INDICATORS as readonly string[]).includes(x)) : []
+  } catch {
+    return ['SMA50']
+  }
+}
+
 export function ChartPanel({ history, range, onRange }: { history: Load<History>; range: Range; onRange: (r: Range) => void }) {
   const h = history.data
+  const [indicators, setIndicators] = useState<Indicator[]>(loadIndicators)
+  const toggle = (i: Indicator) => {
+    const next = indicators.includes(i) ? indicators.filter((x) => x !== i) : [...indicators, i]
+    setIndicators(next)
+    try {
+      localStorage.setItem('finhub.indicators', JSON.stringify(next))
+    } catch {
+      /* storage unavailable */
+    }
+  }
   return (
     <Panel code="GP" title="Price chart (daily, unadjusted)" className="grid__chart">
       <div className="chart-wrap">
@@ -111,11 +131,15 @@ export function ChartPanel({ history, range, onRange }: { history: Load<History>
           {RANGES.map((r) => (
             <button key={r} className={`chip ${r === range ? 'chip--on' : ''}`} onClick={() => onRange(r)}>{r}</button>
           ))}
+          <span className="toolbar-sep" />
+          {INDICATORS.map((i) => (
+            <button key={i} className={`chip chip--ind ${indicators.includes(i) ? 'chip--on' : ''}`} onClick={() => toggle(i)}>{i}</button>
+          ))}
           {h && <SourceBadge meta={h} />}
         </div>
         {history.loading && !h && <Loading what="price history" />}
         {history.error && <DataError error={history.error} what="price history" />}
-        {h && <PriceChart bars={h.bars} />}
+        {h && <PriceChart bars={h.bars} indicators={indicators} />}
       </div>
     </Panel>
   )
