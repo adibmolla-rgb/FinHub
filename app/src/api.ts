@@ -23,7 +23,7 @@ export type EngineStatus = {
 export type Receipt = {
   label: string
   value: number
-  unit: 'fraction' | 'percent' | 'bp' | 'currency' | 'shares' | 'ratio' | 'count'
+  unit: 'fraction' | 'percent' | 'bp' | 'currency' | 'shares' | 'ratio' | 'count' | 'as_reported'
   currency: string | null
   source: { provider: string; fetched_at: string; detail: string | null }
   formula: string | null
@@ -173,6 +173,9 @@ export function formatValue(r: Pick<Receipt, 'value' | 'unit' | 'currency'>): st
     }
     case 'shares':
       return compact(r.value)
+    case 'as_reported':
+      // Unit not declared by the provider: show the number exactly, never as a percent.
+      return Math.abs(r.value) >= 1e5 ? compact(r.value) : r.value.toLocaleString(undefined, { maximumFractionDigits: 4 })
     default:
       return r.value.toLocaleString(undefined, { maximumFractionDigits: 4 })
   }
@@ -340,3 +343,14 @@ export type Fundamentals = {
 export const fundamentalsApi = {
   get: (s: string, period: 'annual' | 'quarter') => get<Fundamentals>(`/market/fundamentals/${enc(s)}?period=${period}`, DATA_TIMEOUT),
 }
+
+// ---------------------------------------------------------------------------------------------
+// Macro
+// ---------------------------------------------------------------------------------------------
+
+export type MacroSeries = {
+  series: string; label: string; unit_kind: 'fraction' | 'as_reported'; unit: string
+  points: { date: string; value: number }[]; latest: Receipt; change_1y?: Receipt
+}
+export type MacroDashboard = { country: string; series: Record<string, MacroSeries>; errors: Record<string, string> }
+export const macroApi = { get: (country: string) => get<MacroDashboard>(`/macro/${enc(country)}`, DATA_TIMEOUT) }

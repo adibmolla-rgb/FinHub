@@ -123,3 +123,25 @@ def test_statement_from_openbb_records_transposes():
 def test_statement_rejects_bad_arguments():
     with pytest.raises(ValueError):
         providers.yahoo_statement("X", "nope")
+
+
+def test_macro_units_come_from_openbb_metadata_not_guesses():
+    from pydantic import BaseModel, Field
+
+    class Normalised(BaseModel):
+        value: float = Field(json_schema_extra={"x-unit_measurement": "percent", "x-frontend_multiply": 100})
+
+    class Misspelt(BaseModel):  # OpenBB's interest-rate model spells the key "measurment"
+        value: float = Field(json_schema_extra={"x-unit_measurment": "percent", "x-frontend_multiply": 100})
+
+    class Labelled(BaseModel):
+        value: float
+        unit: str | None = None
+
+    class Silent(BaseModel):
+        value: float
+
+    assert providers.unit_of(Normalised(value=0.04))[0] == "fraction"
+    assert providers.unit_of(Misspelt(value=0.04))[0] == "fraction"
+    assert providers.unit_of(Labelled(value=2.9, unit="Growth rate, same period previous year")) == ("as_reported", "Growth rate, same period previous year")
+    assert providers.unit_of(Silent(value=5.0)) == ("as_reported", "not stated by the provider")

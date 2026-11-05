@@ -431,3 +431,11 @@ details summary { cursor: pointer; }
 .suggest code { color: var(--accent); font-weight: 700; }
 .suggest__eg { font: 11px var(--mono); color: var(--muted); }
 .suggest__hint { font-size: 10.5px; padding: 4px 8px 2px; }
+
+/* ---------- Macro ---------- */
+.grid--macro { grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); grid-auto-rows: minmax(260px, 1fr); grid-template-areas: none; align-content: start; overflow: auto; }
+.macro-card .panel__body { display: flex; flex-direction: column; }
+.macro-head { display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap; }
+.macro-val { font-size: 22px; font-weight: 700; }
+.spark { flex: 1; min-height: 150px; }
+.macro-note { grid-column: 1 / -1; }

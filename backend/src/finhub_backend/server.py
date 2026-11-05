@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from finhub_backend import __version__, agent, backtest, engines, fundamentals, installer, market, risk, sim, store
+from finhub_backend import __version__, agent, backtest, engines, fundamentals, installer, macro, market, risk, sim, store
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -172,6 +172,14 @@ def market_news(symbol: str, limit: int = Query(20, ge=1, le=50)):
 @app.get("/market/fundamentals/{symbol}")
 def market_fundamentals(symbol: str, period: str = Query("annual", pattern="^(annual|quarter)$")):
     return _market(fundamentals.fundamentals, _check(symbol), period)
+
+
+@app.get("/macro/{country}")
+def macro_dashboard(country: str, years: int = Query(10, ge=1, le=40)):
+    try:
+        return _market(macro.dashboard, country, years)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
 
 @app.get("/market/sources")

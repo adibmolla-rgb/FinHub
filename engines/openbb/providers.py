@@ -9,6 +9,7 @@ Nothing here converts units: the backend owns that.
 from __future__ import annotations
 
 import math
+import re
 import time
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
@@ -25,6 +26,7 @@ CHAINS: dict[str, list[str]] = {
     "profile": ["yahoo", "nasdaq", "tmx", "finra"],
     "news": ["yahoo", "nasdaq", "tmx"],
     "statement": ["yahoo", "sec", "nasdaq", "tmx"],
+    "macro": ["oecd"],
 }
 
 PROVIDER_NAMES = {
@@ -34,6 +36,7 @@ PROVIDER_NAMES = {
     "tmx": "TMX (via OpenBB)",
     "finra": "FINRA (via OpenBB)",
     "sec": "SEC filings (via OpenBB)",
+    "oecd": "OECD (via OpenBB)",
 }
 
 
@@ -448,10 +451,63 @@ def openbb_statement(provider: str) -> Callable[..., dict]:
     return fetch
 
 
+# --------------------------------------------------------------------------------------------------
+# Macro series (OECD). Units come from OpenBB's own field metadata, never from guessing.
+# --------------------------------------------------------------------------------------------------
+
+MACRO_SERIES = {
+    "unemployment": ("Unemployment rate", lambda o, c, start: o.economy.unemployment(country=c, start_date=start, provider="oecd")),
+    "rate_short": ("Short-term interest rate", lambda o, c, start: o.economy.interest_rates(country=c, duration="short", start_date=start, provider="oecd")),
+    "rate_long": ("Long-term interest rate (10y)", lambda o, c, start: o.economy.interest_rates(country=c, duration="long", start_date=start, provider="oecd")),
+    "cpi": ("CPI inflation (year on year)", lambda o, c, start: o.economy.cpi(country=c, transform="yoy", start_date=start, provider="oecd")),
+    "gdp_real": ("Real GDP", lambda o, c, start: o.economy.gdp.real(country=c, start_date=start, provider="oecd")),
+}
+
+
+def unit_of(row) -> tuple[str, str]:
+    """(kind, description) for a result row's `value` field.
+
+    kind is "fraction" when OpenBB marks the field as a normalised percent (x-frontend_multiply = 100),
+    otherwise "as_reported" with whatever unit text the provider gives (or "not stated").
+    """
+    fields = getattr(type(row), "model_fields", {})
+    extra = (fields.get("value").json_schema_extra if fields.get("value") else None) or {}
+    measure = extra.get("x-unit_measurement") or extra.get("x-unit_measurment")  # OpenBB spells it both ways
+    if extra.get("x-frontend_multiply") == 100 and measure == "percent":
+        return "fraction", "fraction (OpenBB normalised percent)"
+    data = row.model_dump() if hasattr(row, "model_dump") else dict(row)
+    text = " ".join(str(data[k]) for k in ("unit", "unit_multiplier") if data.get(k) not in (None, "", 0))
+    return "as_reported", text or "not stated by the provider"
+
+
+def macro_series(series: str, country: str = "united_states", years: int = 10) -> dict:
+    if series not in MACRO_SERIES:
+        raise ValueError(f"series must be one of {list(MACRO_SERIES)}")
+    if not re.fullmatch(r"[a-z_]{2,40}", country):
+        raise ValueError("country must be lowercase words joined by _, e.g. united_states")
+    label, call = MACRO_SERIES[series]
+    rows = call(obb(), country, date.today() - timedelta(days=365 * years))
+    rows = rows.results if hasattr(rows, "results") else rows
+    if not rows:
+        raise NoData(f"no {series} data for {country}")
+    kind, unit_text = unit_of(rows[0])
+    points = []
+    for r in rows:
+        d = r.model_dump() if hasattr(r, "model_dump") else dict(r)
+        v = _num(d.get("value"))
+        if v is not None and d.get("date") is not None:
+            points.append({"date": str(d["date"])[:10], "value": v})
+    if not points:
+        raise NoData(f"no usable {series} values for {country}")
+    points.sort(key=lambda p: p["date"])
+    return {"series": series, "label": label, "country": country, "unit_kind": kind, "unit": unit_text, "points": points}
+
+
 FETCHERS: dict[str, dict[str, Callable[..., dict]]] = {
     "quote": {"yahoo": yahoo_quote, **{p: on_obb_thread(openbb_quote(p)) for p in ("cboe", "nasdaq", "tmx")}},
     "history": {"yahoo": yahoo_history, **{p: on_obb_thread(openbb_history(p)) for p in ("cboe", "nasdaq", "tmx")}},
     "profile": {"yahoo": yahoo_profile, **{p: on_obb_thread(openbb_profile(p)) for p in ("nasdaq", "tmx", "finra")}},
     "news": {"yahoo": yahoo_news, **{p: on_obb_thread(openbb_news(p)) for p in ("nasdaq", "tmx")}},
+    "macro": {"oecd": on_obb_thread(macro_series)},
     "statement": {"yahoo": yahoo_statement, **{p: on_obb_thread(openbb_statement(p)) for p in ("sec", "nasdaq", "tmx")}},
 }

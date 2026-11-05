@@ -23,6 +23,7 @@ class Unit(StrEnum):
     SHARES = "shares"
     RATIO = "ratio"  # dimensionless, not a rate (e.g. P/E, Sharpe)
     COUNT = "count"
+    AS_REPORTED = "as_reported"  # the provider did not declare a unit we can rely on; shown verbatim
 
 
 # How many "fraction units" one unit of each rate-like unit is worth.
