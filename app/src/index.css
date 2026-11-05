@@ -461,3 +461,12 @@ details summary { cursor: pointer; }
 .grid__screenres { grid-area: screenres; }
 .sectors { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
 @media (max-width: 1000px) { .grid--screen { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'screenform' 'screenres'; } }
+
+/* Focus mode */
+.panel__header { user-select: none; }
+.panel__max {
+  margin-left: auto; background: none; border: 1px solid transparent; color: var(--muted); border-radius: 4px;
+  font-size: 13px; line-height: 1; padding: 2px 6px; cursor: pointer;
+}
+.panel__max:hover { border-color: var(--line); color: var(--text); }
+.panel--max { position: fixed; inset: 56px 8px 30px 8px; z-index: 15; box-shadow: 0 12px 40px rgb(0 0 0 / .55); }

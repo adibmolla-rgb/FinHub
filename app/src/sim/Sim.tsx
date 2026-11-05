@@ -15,6 +15,7 @@ function SimChart({ market, version, reveal }: { market: Market; version: number
   const mid = useRef<ISeriesApi<'Line'> | null>(null)
   const value = useRef<ISeriesApi<'Line'> | null>(null)
   const drawn = useRef(0)
+  const chartRef = useRef<ReturnType<typeof createChart> | null>(null)
 
   useEffect(() => {
     if (!el.current) return
@@ -29,7 +30,11 @@ function SimChart({ market, version, reveal }: { market: Market; version: number
     mid.current = chart.addSeries(LineSeries, { color: '#3ddc97', lineWidth: 2, title: 'mid' })
     value.current = chart.addSeries(LineSeries, { color: '#f0b429', lineWidth: 1, lineStyle: 2, title: 'true value', visible: false })
     drawn.current = 0
-    return () => chart.remove()
+    chartRef.current = chart
+    return () => {
+      chart.remove()
+      chartRef.current = null
+    }
   }, [market])
 
   useEffect(() => {
@@ -45,6 +50,8 @@ function SimChart({ market, version, reveal }: { market: Market; version: number
       value.current?.update({ time: t, value: s.value })
     }
     drawn.current = h.length
+    // Until there is enough history to fill the panel, stretch what there is across it.
+    if (h.length < 400) chartRef.current?.timeScale().fitContent()
   }, [market, version])
 
   return <div ref={el} className="chart" />

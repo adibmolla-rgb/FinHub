@@ -3,11 +3,22 @@ import { formatValue, timeAgo, type EngineStatus, type Health, type InstallState
 import { COMMANDS } from './commands'
 
 export function Panel(props: { code: string; title: string; active?: boolean; children: ReactNode; className?: string }) {
+  // Focus mode: maximise a panel over the workspace (double-click the title bar or press ⤢); Esc restores.
+  const [max, setMax] = useState(false)
+  useEffect(() => {
+    if (!max) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setMax(false)
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [max])
   return (
-    <section className={`panel ${props.active ? 'panel--active' : ''} ${props.className ?? ''}`}>
-      <header className="panel__header">
+    <section className={`panel ${props.active ? 'panel--active' : ''} ${max ? 'panel--max' : ''} ${props.className ?? ''}`}>
+      <header className="panel__header" onDoubleClick={() => setMax((m) => !m)}>
         <span className="panel__code">{props.code}</span>
         <span className="panel__title">{props.title}</span>
+        <button className="panel__max" onClick={() => setMax((m) => !m)} title={max ? 'Restore (Esc)' : 'Maximise (or double-click the title bar)'} aria-label={max ? 'Restore panel' : 'Maximise panel'}>
+          {max ? '⤡' : '⤢'}
+        </button>
       </header>
       <div className="panel__body">{props.children}</div>
     </section>
