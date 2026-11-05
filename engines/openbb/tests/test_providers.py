@@ -96,3 +96,30 @@ def test_yahoo_quote_reports_the_real_cause_not_keyerror(monkeypatch):
     with pytest.raises(providers.NoData) as err:
         providers.yahoo_quote("X")
     assert "ConnectionError: tunnel refused" in str(err.value)
+
+
+def test_statement_from_yfinance_frame():
+    import pandas as pd
+
+    df = pd.DataFrame(
+        {pd.Timestamp("2025-09-30"): [400.0, 180.0, float("nan")], pd.Timestamp("2024-09-30"): [390.0, 170.0, float("nan")]},
+        index=["Total Revenue", "Gross Profit", "Empty Row"],
+    )
+    out = providers.statement_from_frame(df, "income", "annual", "x")
+    assert out["periods"] == ["2025-09-30", "2024-09-30"]
+    assert [r["field"] for r in out["rows"]] == ["Total Revenue", "Gross Profit"]  # all-empty rows dropped
+
+
+def test_statement_from_openbb_records_transposes():
+    recs = [
+        {"period_ending": "2025-12-31", "fiscal_year": 2025, "revenue": 100.0, "net_income": 10.0, "currency": "USD"},
+        {"period_ending": "2024-12-31", "fiscal_year": 2024, "revenue": 90.0, "net_income": None},
+    ]
+    out = providers.statement_from_records(recs, "income", "annual", "x")
+    assert out["periods"] == ["2025-12-31", "2024-12-31"] and out["currency"] == "USD"
+    assert out["rows"] == [{"field": "revenue", "values": [100.0, 90.0]}, {"field": "net_income", "values": [10.0, None]}]
+
+
+def test_statement_rejects_bad_arguments():
+    with pytest.raises(ValueError):
+        providers.yahoo_statement("X", "nope")

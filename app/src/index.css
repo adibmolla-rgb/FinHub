@@ -395,3 +395,15 @@ details summary { cursor: pointer; }
 
 .codebox { display: flex; gap: 8px; align-items: flex-start; }
 .codebox pre { flex: 1; margin: 0; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; font: 12px var(--mono); white-space: pre-wrap; word-break: break-all; }
+
+/* ---------- Fundamentals ---------- */
+.grid--fa { grid-template-columns: minmax(280px, .8fr) 2fr; grid-template-rows: minmax(0, 1fr); grid-template-areas: 'faratios fastmt'; }
+.grid__faratios { grid-area: faratios; }
+.grid__fastmt { grid-area: fastmt; }
+.ratios { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 0; }
+.ratios div { display: flex; flex-direction: column; }
+.ratios dt { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.ratios dd { margin: 0; font-size: 15px; }
+.stmt-scroll { overflow: auto; }
+.stmt td:first-child { white-space: nowrap; }
+@media (max-width: 1000px) { .grid--fa { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'faratios' 'fastmt'; } }

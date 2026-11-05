@@ -9,6 +9,7 @@ import { AgentSettingsPanel, AgentWorkspace } from './Agent'
 import { WatchPanel } from './Watch'
 import { NotesWorkspace } from './Notes'
 import { McpPanel } from './Mcp'
+import { FundamentalsWorkspace } from './Fundamentals'
 import { SimWorkspace } from './sim/Sim'
 import { OptionsWorkspace } from './quant/Options'
 import { BacktestWorkspace, type BacktestPreset } from './quant/Backtest'
@@ -33,6 +34,7 @@ type Workspace =
   | { kind: 'notes'; nonce: number }
   | { kind: 'rcpt' }
   | { kind: 'mcp' }
+  | { kind: 'fa'; symbol: string; nonce: number }
   | { kind: 'opt'; symbol?: string; nonce: number }
   | { kind: 'backtest'; preset: BacktestPreset; nonce: number }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; nonce: number }
@@ -227,6 +229,9 @@ export default function App() {
       case 'mcp':
         setWorkspace({ kind: 'mcp' })
         break
+      case 'fa':
+        setWorkspace({ kind: 'fa', symbol: result.symbol, nonce: Date.now() })
+        break
       case 'watch': {
         setWorkspace({ kind: 'home' })
         setActive('WATCH')
@@ -330,6 +335,8 @@ export default function App() {
         <OptionsWorkspace key={workspace.nonce} symbol={workspace.symbol} />
       ) : workspace.kind === 'notes' ? (
         <NotesWorkspace key={workspace.nonce} onRerun={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'fa' ? (
+        <FundamentalsWorkspace key={workspace.nonce} symbol={workspace.symbol} onReceipt={setReceipt} />
       ) : workspace.kind === 'mcp' ? (
         <main className="grid grid--single">
           <Panel code="MCP" title="Use FinHub from AI assistants" className="grid__single">

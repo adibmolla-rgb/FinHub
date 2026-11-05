@@ -324,3 +324,19 @@ export const notesApi = {
   list: () => get<NoteSummary[]>('/notes', 15_000),
   get: (id: string) => get<Note>(`/notes/${enc(id)}`, 15_000),
 }
+
+// ---------------------------------------------------------------------------------------------
+// Fundamentals
+// ---------------------------------------------------------------------------------------------
+
+export type Statement = SourceMeta & { statement: 'income' | 'balance' | 'cash'; period: string; periods: string[]; currency: string | null; rows: { field: string; values: (number | null)[] }[] }
+export type Fundamentals = {
+  symbol: string
+  period: 'annual' | 'quarter'
+  statements: Partial<Record<'income' | 'balance' | 'cash', Statement>>
+  errors: Partial<Record<'income' | 'balance' | 'cash', { error: string; attempts: Attempt[] }>>
+  ratios: Record<string, Receipt>
+}
+export const fundamentalsApi = {
+  get: (s: string, period: 'annual' | 'quarter') => get<Fundamentals>(`/market/fundamentals/${enc(s)}?period=${period}`, DATA_TIMEOUT),
+}

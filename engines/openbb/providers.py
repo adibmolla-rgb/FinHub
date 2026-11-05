@@ -24,6 +24,7 @@ CHAINS: dict[str, list[str]] = {
     "history": ["yahoo", "cboe", "nasdaq", "tmx"],
     "profile": ["yahoo", "nasdaq", "tmx", "finra"],
     "news": ["yahoo", "nasdaq", "tmx"],
+    "statement": ["yahoo", "sec", "nasdaq", "tmx"],
 }
 
 PROVIDER_NAMES = {
@@ -32,6 +33,7 @@ PROVIDER_NAMES = {
     "nasdaq": "Nasdaq (via OpenBB)",
     "tmx": "TMX (via OpenBB)",
     "finra": "FINRA (via OpenBB)",
+    "sec": "SEC filings (via OpenBB)",
 }
 
 
@@ -240,6 +242,70 @@ def yahoo_news(symbol: str, limit: int = 20) -> dict:
     return {"symbol": symbol.upper(), "items": items}
 
 
+STATEMENTS = ("income", "balance", "cash")
+
+
+def _check_statement(statement: str, period: str) -> None:
+    if statement not in STATEMENTS:
+        raise ValueError(f"statement must be one of {STATEMENTS}")
+    if period not in ("annual", "quarter"):
+        raise ValueError("period must be 'annual' or 'quarter'")
+
+
+def statement_from_frame(df, statement: str, period: str, symbol: str) -> dict:
+    """yfinance statement DataFrame (rows = line items, columns = period end dates) -> FinHub shape."""
+    if df is None or getattr(df, "empty", True):
+        raise NoData(f"no {statement} statement for {symbol}")
+    cols = list(df.columns)[:8]
+    periods = [c.date().isoformat() if hasattr(c, "date") else str(c) for c in cols]
+    rows = []
+    for item in df.index:
+        values = [_num(df.at[item, c]) for c in cols]
+        if any(v is not None for v in values):
+            rows.append({"field": str(item), "values": values})
+    if not rows:
+        raise NoData(f"empty {statement} statement for {symbol}")
+    return {"symbol": symbol.upper(), "statement": statement, "period": period, "periods": periods, "rows": rows, "currency": None}
+
+
+def yahoo_statement(symbol: str, statement: str = "income", period: str = "annual") -> dict:
+    _check_statement(statement, period)
+    t = _yf().Ticker(symbol)
+    attr = {"income": "income_stmt", "balance": "balance_sheet", "cash": "cashflow"}[statement]
+    df = getattr(t, ("quarterly_" if period == "quarter" else "") + attr)
+    out = statement_from_frame(df, statement, period, symbol)
+    try:
+        out["currency"] = (t.fast_info or {}).get("currency")
+    except Exception:
+        pass
+    return out
+
+
+_META_FIELDS = {"period_ending", "fiscal_period", "fiscal_year", "symbol", "cik", "currency", "reported_currency", "filing_date", "accepted_date", "calendar_year", "period"}
+
+
+def statement_from_records(records: list[dict], statement: str, period: str, symbol: str) -> dict:
+    """OpenBB statement records (one dict per period) -> FinHub shape (transposed)."""
+    records = [r for r in records if r][:8]
+    if not records:
+        raise NoData(f"no {statement} statement for {symbol}")
+    periods = [str(r.get("period_ending") or r.get("fiscal_year") or i)[:10] for i, r in enumerate(records)]
+    fields: list[str] = []
+    for r in records:
+        for k in r:
+            if k not in _META_FIELDS and k not in fields:
+                fields.append(k)
+    rows = []
+    for f in fields:
+        values = [_num(r.get(f)) for r in records]
+        if any(v is not None for v in values):
+            rows.append({"field": f, "values": values})
+    if not rows:
+        raise NoData(f"empty {statement} statement for {symbol}")
+    currency = next((r.get("currency") or r.get("reported_currency") for r in records if r.get("currency") or r.get("reported_currency")), None)
+    return {"symbol": symbol.upper(), "statement": statement, "period": period, "periods": periods, "rows": rows, "currency": currency}
+
+
 # --------------------------------------------------------------------------------------------------
 # OpenBB providers (cboe, nasdaq, tmx, finra) — imported lazily because OpenBB takes ~30s to load
 # --------------------------------------------------------------------------------------------------
@@ -373,9 +439,19 @@ def openbb_news(provider: str) -> Callable[..., dict]:
     return fetch
 
 
+def openbb_statement(provider: str) -> Callable[..., dict]:
+    def fetch(symbol: str, statement: str = "income", period: str = "annual") -> dict:
+        _check_statement(statement, period)
+        fn = getattr(obb().equity.fundamental, statement)
+        return statement_from_records(_rows(fn(symbol=symbol, period=period, limit=8, provider=provider)), statement, period, symbol)
+
+    return fetch
+
+
 FETCHERS: dict[str, dict[str, Callable[..., dict]]] = {
     "quote": {"yahoo": yahoo_quote, **{p: on_obb_thread(openbb_quote(p)) for p in ("cboe", "nasdaq", "tmx")}},
     "history": {"yahoo": yahoo_history, **{p: on_obb_thread(openbb_history(p)) for p in ("cboe", "nasdaq", "tmx")}},
     "profile": {"yahoo": yahoo_profile, **{p: on_obb_thread(openbb_profile(p)) for p in ("nasdaq", "tmx", "finra")}},
     "news": {"yahoo": yahoo_news, **{p: on_obb_thread(openbb_news(p)) for p in ("nasdaq", "tmx")}},
+    "statement": {"yahoo": yahoo_statement, **{p: on_obb_thread(openbb_statement(p)) for p in ("sec", "nasdaq", "tmx")}},
 }
