@@ -144,3 +144,49 @@ def test_backtest_endpoint_requests_adjusted_prices_and_reports_provenance(tmp_p
     finally:
         w.stop()
         market.set_worker(None)
+
+
+MULTI_WORKER = textwrap.dedent(
+    """
+    import json, sys, random
+    for line in sys.stdin:
+        req = json.loads(line)
+        sym = req["params"]["symbol"]
+        rnd = random.Random(sym)  # a different synthetic series per ticker
+        price, bars = 100.0, []
+        start = 0 if sym != "SHORT" else 1500  # SHORT has less history: tests date alignment
+        for i in range(start, 1600):
+            price *= 1 + rnd.gauss(0.0003, 0.01)
+            bars.append({"time": f"day{i:05d}", "open": 0, "high": 0, "low": 0, "close": price, "volume": 0})
+        print(json.dumps({"id": req["id"], "ok": True, "result": {
+            "provider": "test", "provider_name": "SYNTHETIC", "fetched_at": "2026-11-05T00:00:00+00:00",
+            "attempts": [], "data": {"symbol": sym, "interval": "1d", "adjusted": True, "bars": bars}}}), flush=True)
+    """
+)
+
+
+@pytest.fixture
+def multi_worker(tmp_path):
+    from pathlib import Path
+
+    script = tmp_path / "worker.py"
+    script.write_text(MULTI_WORKER)
+    w = EngineWorker(Path(sys.executable), script)
+    market.set_worker(w)
+    yield w
+    w.stop()
+    market.set_worker(None)
+
+
+def test_risk_endpoint_aligns_dates_and_reports_sources(multi_worker):
+    client = TestClient(app)
+    res = client.post("/risk", json={"holdings": [{"symbol": "AAA", "weight": 60}, {"symbol": "BBB", "weight": 40}], "confidence": 0.95})
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["weights"] == pytest.approx([0.6, 0.4])
+    assert {d["symbol"] for d in body["data"]} == {"AAA", "BBB"}
+    assert body["var_backtest"]["available"]
+    # A holding with only 100 days of history limits the shared window.
+    res = client.post("/risk", json={"holdings": [{"symbol": "AAA", "weight": 1}, {"symbol": "SHORT", "weight": 1}]})
+    assert res.json()["period"]["days"] == 99
+    assert client.post("/risk", json={"holdings": [{"symbol": "AAA", "weight": 1}, {"symbol": "AAA", "weight": 1}]}).status_code == 422

@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from finhub_backend import __version__, agent, backtest, engines, installer, market
+from finhub_backend import __version__, agent, backtest, engines, installer, market, risk
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -207,6 +207,69 @@ def run_backtest_endpoint(req: BacktestRequest):
         "attempts": hist["attempts"],
         "bars": len(bars),
     }
+    return result
+
+
+# --------------------------------------------------------------------------------------------------
+# Portfolio risk
+# --------------------------------------------------------------------------------------------------
+
+
+class Holding(BaseModel):
+    symbol: str = Field(pattern=r"^[A-Za-z0-9.\-^=]{1,15}$")
+    weight: float = Field(gt=0)
+
+
+class RiskRequest(BaseModel):
+    holdings: list[Holding] = Field(min_length=1, max_length=25)
+    range: str = Field("5Y", pattern="^(1Y|5Y|MAX)$")
+    confidence: float = Field(0.99, ge=0.9, le=0.999)
+    value: float = Field(10_000, gt=0)
+
+
+@app.post("/risk")
+def portfolio_risk(req: RiskRequest):
+    from concurrent.futures import ThreadPoolExecutor
+
+    import numpy as np
+
+    symbols = [h.symbol.upper() for h in req.holdings]
+    if len(set(symbols)) != len(symbols):
+        raise HTTPException(status_code=422, detail="each ticker can appear only once")
+
+    def fetch(sym: str):
+        try:
+            return sym, market.history(sym, req.range, adjusted=True), None
+        except market.MarketDataError as exc:
+            return sym, None, exc
+
+    with ThreadPoolExecutor(max_workers=min(6, len(symbols))) as pool:
+        fetched = list(pool.map(fetch, symbols))
+    failed = [(s, e) for s, h, e in fetched if e is not None]
+    if failed:
+        sym, exc = failed[0]
+        return JSONResponse(
+            status_code=502,
+            content={"error": f"couldn't load {', '.join(s for s, _ in failed)}: {exc}", "attempts": exc.attempts},
+        )
+
+    # Align on the dates every holding traded.
+    series = {s: {str(b["time"]): b["close"] for b in h["bars"]} for s, h, _ in fetched}
+    common = sorted(set.intersection(*(set(v) for v in series.values())))
+    if len(common) < 61:
+        raise HTTPException(status_code=422, detail=f"only {len(common)} trading days shared by all holdings; need at least 61")
+    closes = np.array([[series[s][d] for s in symbols] for d in common], dtype=float)
+    returns = closes[1:] / closes[:-1] - 1
+    try:
+        result = risk.analyse(symbols, [h.weight for h in req.holdings], common[1:], returns, req.confidence, req.value)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result["data"] = [
+        {"symbol": s, "provider": h["provider_name"], "fetched_at": h["fetched_at"], "adjusted": h["adjusted"], "bars": len(h["bars"])}
+        for s, h, _ in fetched
+    ]
+    if not all(h["adjusted"] for _, h, _ in fetched):
+        result["warnings"].append("Some prices are not adjusted for splits and dividends; a split shows up as a fake loss.")
     return result
 
 

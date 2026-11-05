@@ -347,3 +347,25 @@ code { font-family: var(--mono); font-size: 12px; }
 @media (max-width: 1100px) {
   .grid--bt { grid-template-columns: 1fr; grid-template-areas: 'btform' 'bteq' 'btval' 'btstats' 'btwf'; }
 }
+
+/* ---------- Risk ---------- */
+.grid--risk {
+  grid-template-columns: minmax(280px, .9fr) 1.2fr 1.2fr;
+  grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-areas: 'riskin riskvar riskdist' 'riskassets riskassets riskopt';
+}
+.grid__riskin { grid-area: riskin; }
+.grid__riskvar { grid-area: riskvar; }
+.grid__riskdist { grid-area: riskdist; }
+.grid__riskassets { grid-area: riskassets; }
+.grid__riskopt { grid-area: riskopt; }
+.hist { width: 100%; height: auto; display: block; }
+.bar { position: relative; height: 14px; background: var(--bg); border-radius: 3px; min-width: 120px; }
+.bar span { display: block; height: 100%; background: rgba(240,180,41,.45); border-radius: 3px; }
+.bar em { position: absolute; right: 4px; top: -1px; font: 10.5px var(--mono); font-style: normal; color: var(--text); }
+.corr { border-collapse: collapse; font: 11.5px var(--mono); }
+.corr th { color: var(--muted); font-weight: 500; padding: 3px 8px; text-align: center; }
+.corr td { padding: 4px 8px; text-align: center; min-width: 52px; }
+@media (max-width: 1100px) {
+  .grid--risk { grid-template-columns: 1fr; grid-template-areas: 'riskin' 'riskvar' 'riskdist' 'riskassets' 'riskopt'; }
+}

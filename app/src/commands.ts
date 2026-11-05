@@ -13,6 +13,7 @@ export type CommandResult =
   | { kind: 'ai'; message: string }
   | { kind: 'sim'; message: string }
   | { kind: 'opt'; symbol?: string; message: string }
+  | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; message: string }
   | { kind: 'backtest'; symbol?: string; strategy?: string; params?: number[]; message: string }
   | { kind: 'clear'; message: string }
   | { kind: 'refresh'; message: string }
@@ -33,12 +34,13 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'DEBATE', usage: 'DEBATE TSLA', description: 'Bull case, bear case and a neutral judge', status: 'ready' },
   { name: 'AI', usage: 'AI', description: 'Choose the AI provider (Claude, OpenAI or local Ollama) and key', status: 'ready' },
   { name: 'BACKTEST', usage: 'BACKTEST SPY sma 20 50', description: 'FinHub backtester: costs, next-bar fills, walk-forward, deflated Sharpe (also momentum 126, meanrev 20 2)', status: 'ready' },
+  { name: 'RISK', usage: 'RISK SPY 60 TLT 30 GLD 10', description: 'Portfolio VaR/ES three ways, VaR backtest, correlations, risk contributions, optimal weights', status: 'ready' },
   { name: 'OPT', usage: 'OPT AAPL', description: 'Options lab: price three ways, Greeks, implied vol, strategy payoffs', status: 'ready' },
   { name: 'SIM', usage: 'SIM', description: 'Simulated exchange: trade against bots, trigger news and crashes', status: 'ready' },
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'RCPT', 'LOG']
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -71,6 +73,17 @@ export function runCommand(input: string): CommandResult {
   }
 
   if (word === 'SIM') return { kind: 'sim', message: 'Market simulator' }
+  if (word === 'RISK') {
+    const rest = words.slice(1)
+    const holdings: { symbol: string; weight: number }[] = []
+    for (let i = 0; i < rest.length; i += 2) {
+      const sym = rest[i].toUpperCase()
+      const w = parseFloat(rest[i + 1])
+      if (!SYMBOL.test(sym) || !(w > 0)) return { kind: 'error', message: 'Usage: RISK SPY 60 TLT 30 GLD 10 (ticker then weight)' }
+      holdings.push({ symbol: sym, weight: w })
+    }
+    return { kind: 'risk', holdings, message: holdings.length ? `Risk: ${holdings.map((h) => h.symbol).join(', ')}` : 'Portfolio risk' }
+  }
   if (word === 'BACKTEST') {
     const sym = words[1]?.toUpperCase()
     if (sym && !SYMBOL.test(sym)) return { kind: 'error', message: 'Usage: BACKTEST SPY sma 20 50' }

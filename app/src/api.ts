@@ -276,3 +276,31 @@ export const backtestApi = {
   strategies: () => get<StrategyInfo[]>('/backtest/strategies'),
   run: (req: BacktestRequest) => send<BacktestResult>('/backtest', 'POST', req, 180_000),
 }
+
+// ---------------------------------------------------------------------------------------------
+// Portfolio risk
+// ---------------------------------------------------------------------------------------------
+
+export type RiskRequest = { holdings: { symbol: string; weight: number }[]; range: '1Y' | '5Y' | 'MAX'; confidence: number; value: number }
+type VarEs = { var: number; es: number }
+type PortStats = { weights: number[]; expected_return: number; volatility: number; sharpe: number; weight_sd?: number[] }
+type Worst = { return: number; start: string; end: string }
+
+export type RiskResult = {
+  symbols: string[]
+  weights: number[]
+  period: { start: string; end: string; days: number }
+  confidence: number
+  value: number
+  var: { historical: VarEs; parametric: VarEs; monte_carlo: VarEs }
+  var_backtest: { available: false; reason: string } | { available: true; window: number; days: number; exceptions: number; expected: number; p_value: number; verdict: string }
+  portfolio: { volatility: number; expected_return: number; max_drawdown: number; skew: number; kurtosis: number; worst_day: Worst; worst_week: Worst; worst_month: Worst }
+  assets: { symbol: string; weight: number; volatility: number; expected_return: number; risk_contribution: number }[]
+  correlation: number[][]
+  optimisation: { current: PortStats; min_variance: PortStats; max_sharpe: PortStats }
+  histogram: { counts: number[]; edges: number[] }
+  warnings: string[]
+  data: { symbol: string; provider: string; fetched_at: string; adjusted: boolean; bars: number }[]
+}
+
+export const riskApi = { run: (req: RiskRequest) => send<RiskResult>('/risk', 'POST', req, 240_000) }
