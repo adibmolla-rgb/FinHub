@@ -254,3 +254,39 @@ code { font-family: var(--mono); font-size: 12px; }
 @media (max-width: 900px) {
   .grid--agent { grid-template-columns: 1fr; grid-template-areas: 'head' 'prompt' 'err' 'answer' 'trace'; }
 }
+
+/* ---------- Market simulator ---------- */
+.grid--sim {
+  grid-template-columns: minmax(220px, .8fr) 1.6fr minmax(280px, 1fr);
+  grid-template-rows: auto minmax(0, 1.3fr) minmax(0, 1fr);
+  grid-template-areas: 'head head head' 'depth chart you' 'depth tape board';
+}
+.sim-head { grid-area: head; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 8px 12px; }
+.grid__depth { grid-area: depth; }
+.grid__simchart { grid-area: chart; }
+.grid__simchart .panel__body { display: flex; flex-direction: column; }
+.grid__simchart .chart-wrap { flex: 1; height: auto; }
+.grid__you { grid-area: you; }
+.grid__board { grid-area: board; }
+.grid__tape { grid-area: tape; }
+.depth { width: 100%; border-collapse: collapse; font: 12px var(--mono); }
+.depth td { padding: 1px 4px; text-align: right; }
+.depth__bar { width: 45%; position: relative; }
+.depth__bar span { display: block; height: 12px; margin-left: auto; border-radius: 2px; }
+.depth__ask .depth__bar span { background: rgb(242 85 90 / .25); }
+.depth__bid .depth__bar span { background: rgb(61 220 151 / .25); }
+.depth__mid td { text-align: center; padding: 4px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.ticket { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.btn { flex: 1; border: 0; border-radius: 5px; padding: 8px 10px; font: 600 12.5px var(--sans); cursor: pointer; color: #08110d; }
+.btn--buy { background: var(--accent); }
+.btn--sell { background: var(--bad); color: #fff; }
+.board__you td { font-weight: 700; }
+.tape { list-style: none; margin: 0; padding: 0; font: 11.5px var(--mono); display: flex; flex-direction: column; gap: 2px; }
+.tape li { display: grid; grid-template-columns: 70px 50px 1fr; }
+.tape__you { background: rgb(240 180 41 / .1); }
+.sim-events { margin-top: 8px; border-top: 1px solid var(--line); padding-top: 6px; }
+.sim-events p { margin: 2px 0; }
+@media (max-width: 1000px) {
+  .grid--sim { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'head' 'chart' 'you' 'depth' 'board' 'tape'; }
+}

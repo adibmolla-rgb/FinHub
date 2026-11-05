@@ -5,8 +5,8 @@ brings a data platform, an AI reasoning agent, analytics and a simulated exchang
 keyboard-driven workspace, and it shows where every number comes from.
 
 > Status: **v0.3.** Market data with receipts and provider fallback; an AI reasoning agent (`ASK`, `BT`,
-> `DEBATE`) with a visible trace of every tool it uses; installers for Windows, macOS and Linux that set
-> everything up themselves. Analytics panels and the market simulator are next.
+> `DEBATE`) with a visible trace of every tool it uses; a market simulator (`SIM`); installers for Windows, macOS and Linux that set
+> everything up themselves. Analytics panels (options, risk, screener) are next.
 
 ## Install
 
@@ -99,6 +99,7 @@ Keyboard: `Ctrl/Cmd+K` or `/` focuses the command bar, `↑`/`↓` walk command 
 | `BT <strategy>` | Agent backtest with costs, next-bar fills, buy-and-hold comparison and validation warnings |
 | `DEBATE <ticker>` | Bull case, bear case and a neutral judge |
 | `AI` | Choose the AI provider, model and key |
+| `SIM` | Market simulator: trade against bots (B buy, S sell, F flatten, Space pause), trigger news, a flash crash or a liquidity drain |
 
 Click any number to open its receipt: the provider, the provider's field name, when it was fetched,
 and for computed values (change, % change, distance from the 52-week high) the formula and inputs.
@@ -126,7 +127,7 @@ AGPL-3.0, so FinHub does not use it. Provider data is subject to each provider's
 2. **Market data** ✅ Quote, chart, profile and news with receipts, provider fallback and source health. *Next within this step: fundamentals and financial statements, macro data, watchlists.*
 3. **Reasoning agent** ✅ Vibe-Trading embedded; `ASK`, `BT` and `DEBATE` with a live reasoning trace. *Next: saved research notes and re-runs.*
 4. **Analytics panels.** Options, portfolio risk, screener, valuation.
-5. **Market simulator.** Our own exchange (order book, matching engine) with trading bots, plus an MCP server so outside AI agents can trade in it.
+5. **Market simulator** ✅ Price-time-priority matching engine, five bot strategies (market maker with inventory skew and order-flow learning, noise, momentum, mean reversion, informed), news / crash / liquidity-drain scenarios, and your P&L split into spread earned vs adverse selection. *Next: an MCP server so outside AI agents can trade in it; a C++/WebAssembly engine.*
 6. **Polish.** Self-installing Python runtime ✅ · installers for all three systems ✅ · next: dockable layouts, code signing, auto-update, a web demo.
 
 ## Licence

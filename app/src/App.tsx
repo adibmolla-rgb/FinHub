@@ -6,6 +6,7 @@ import { HelpPanel, LogPanel, Panel, ReceiptDrawer, ReceiptPanel, SystemPanel, t
 import { ChartPanel, NewsPanel, ProfilePanel, QuoteStrip } from './Ticker'
 import { useTicker } from './useTicker'
 import { AgentSettingsPanel, AgentWorkspace } from './Agent'
+import { SimWorkspace } from './sim/Sim'
 import type { AskKind } from './api'
 
 function useClock() {
@@ -22,6 +23,7 @@ type Workspace =
   | { kind: 'ticker'; symbol: string; range: Range }
   | { kind: 'agent'; ask: AskKind; text: string; nonce: number }
   | { kind: 'ai' }
+  | { kind: 'sim' }
 
 function TickerWorkspace({ symbol, range, onRange, onReceipt, log }: {
   symbol: string; range: Range; onRange: (r: Range) => void; onReceipt: (r: Receipt) => void; log: LogEntry[]
@@ -186,6 +188,9 @@ export default function App() {
       case 'ai':
         setWorkspace({ kind: 'ai' })
         break
+      case 'sim':
+        setWorkspace({ kind: 'sim' })
+        break
       case 'refresh':
         checkHealth()
         loadEngines(true)
@@ -229,7 +234,7 @@ export default function App() {
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={onCommandKey}
-            placeholder="Ticker or command — AAPL, ASK …, BT …, DEBATE TSLA, AI, HELP   (Ctrl+K)"
+            placeholder="Ticker or command — AAPL, ASK …, BT …, DEBATE TSLA, SIM, AI, HELP   (Ctrl+K)"
             spellCheck={false}
             autoComplete="off"
             autoFocus
@@ -261,6 +266,8 @@ export default function App() {
           text={workspace.text}
           onOpenSettings={() => setWorkspace({ kind: 'ai' })}
         />
+      ) : workspace.kind === 'sim' ? (
+        <SimWorkspace />
       ) : workspace.kind === 'ai' ? (
         <main className="grid grid--single">
           <Panel code="AI" title="AI provider for ASK, BT and DEBATE" className="grid__single">

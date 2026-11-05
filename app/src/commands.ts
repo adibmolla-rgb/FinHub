@@ -11,6 +11,7 @@ export type CommandResult =
   | { kind: 'home'; message: string }
   | { kind: 'agent'; ask: AskKind; text: string; message: string }
   | { kind: 'ai'; message: string }
+  | { kind: 'sim'; message: string }
   | { kind: 'clear'; message: string }
   | { kind: 'refresh'; message: string }
   | { kind: 'error'; message: string }
@@ -29,11 +30,11 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'BT', usage: 'BT SPY 20/50 day moving-average crossover', description: 'Agent backtest with costs, buy-and-hold comparison and validation warnings', status: 'ready' },
   { name: 'DEBATE', usage: 'DEBATE TSLA', description: 'Bull case, bear case and a neutral judge', status: 'ready' },
   { name: 'AI', usage: 'AI', description: 'Choose the AI provider (Claude, OpenAI or local Ollama) and key', status: 'ready' },
-  { name: 'SIM', usage: 'SIM start', description: 'Simulated exchange with trading bots', status: 'planned' },
+  { name: 'SIM', usage: 'SIM', description: 'Simulated exchange: trade against bots, trigger news and crashes', status: 'ready' },
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'RCPT', 'LOG']
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -65,6 +66,7 @@ export function runCommand(input: string): CommandResult {
     return { kind: 'ticker', symbol: sym, range: asRange(words[2]), message: `Loading ${sym}…` }
   }
 
+  if (word === 'SIM') return { kind: 'sim', message: 'Market simulator' }
   if (word === 'AI' || word === 'SETTINGS') return { kind: 'ai', message: 'AI settings' }
   if (word === 'ASK' || word === 'BT' || word === 'DEBATE') {
     const rest = text.slice(words[0].length).trim()
