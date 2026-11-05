@@ -1,9 +1,29 @@
 [project]
 name = "finhub-engine-openbb"
 version = "0.1.0"
-description = "Isolated environment for the openbb engine. Kept separate because engines pin conflicting dependencies."
+description = "Isolated environment for the OpenBB data engine. Kept separate because engines pin conflicting dependencies."
 requires-python = ">=3.12,<3.14"
-dependencies = ["openbb"]
+dependencies = [
+    "openbb>=5.0",
+    # OpenBB 5 ships routers separately; these are the Apache-2.0 ones FinHub uses.
+    "openbb-equity>=2.0",
+    "openbb-news>=2.0",
+    "openbb-economy>=2.0",
+    "openbb-etf>=2.0",
+    "openbb-index>=2.0",
+    "openbb-derivatives>=2.0",
+    "openbb-fixedincome>=2.0",
+    # Yahoo Finance via the Apache-2.0 yfinance library directly. OpenBB's own yfinance extension is
+    # AGPL-3.0, so FinHub does not depend on it.
+    "yfinance>=0.2.50",
+]
 
 [tool.uv]
 package = false
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]

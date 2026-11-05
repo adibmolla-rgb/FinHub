@@ -1,5 +1,5 @@
-import { useState, type ReactNode } from 'react'
-import { formatValue, type EngineStatus, type Health, type Receipt, type ReceiptExample } from './api'
+import { useEffect, useState, type ReactNode } from 'react'
+import { formatValue, timeAgo, type EngineStatus, type Health, type Receipt, type ReceiptExample, type SourceHealth } from './api'
 import { COMMANDS } from './commands'
 
 export function Panel(props: { code: string; title: string; active?: boolean; children: ReactNode; className?: string }) {
@@ -14,8 +14,10 @@ export function Panel(props: { code: string; title: string; active?: boolean; ch
   )
 }
 
-export function SystemPanel(props: { health: Health | null; healthError: string | null; engines: EngineStatus[] | null; enginesLoading: boolean }) {
-  const { health, healthError, engines, enginesLoading } = props
+export function SystemPanel(props: {
+  health: Health | null; healthError: string | null; engines: EngineStatus[] | null; enginesLoading: boolean; sources: SourceHealth[] | null
+}) {
+  const { health, healthError, engines, enginesLoading, sources } = props
   return (
     <div className="stack">
       <div className="kv">
@@ -59,6 +61,34 @@ export function SystemPanel(props: { health: Health | null; healthError: string 
           </tbody>
         </table>
       )}
+      <h3 className="subhead">Data sources</h3>
+      {!sources?.length ? (
+        <p className="muted">No data requested yet. Open a ticker (e.g. type AAPL) and each provider tried shows up here.</p>
+      ) : (
+        <table className="table">
+          <thead>
+            <tr>
+              <th>Provider</th>
+              <th>Status</th>
+              <th>OK / failed</th>
+              <th>Last error</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sources.map((s) => (
+              <tr key={s.provider}>
+                <td>{s.provider}</td>
+                <td className={s.status === 'ok' ? 'ok' : s.status === 'failing' ? 'bad' : 'muted'}>
+                  {s.status}
+                  {s.status === 'ok' && s.last_ok_at ? <span className="muted"> · {timeAgo(s.last_ok_at)}</span> : null}
+                </td>
+                <td className="muted">{s.successes} / {s.failures}</td>
+                <td className="muted error-text">{s.last_error ?? '—'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   )
 }
@@ -88,7 +118,7 @@ export function HelpPanel() {
   )
 }
 
-function ReceiptNode({ r, depth = 0 }: { r: Receipt; depth?: number }) {
+export function ReceiptNode({ r, depth = 0 }: { r: Receipt; depth?: number }) {
   const [open, setOpen] = useState(depth === 0)
   return (
     <div className="receipt" style={{ marginLeft: depth ? 14 : 0 }}>
@@ -147,5 +177,30 @@ export function LogPanel({ entries }: { entries: LogEntry[] }) {
         </li>
       ))}
     </ol>
+  )
+}
+
+/** Slide-over showing the full receipt tree for one number. Esc closes it. */
+export function ReceiptDrawer({ receipt, onClose }: { receipt: Receipt | null; onClose: () => void }) {
+  useEffect(() => {
+    if (!receipt) return
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [receipt, onClose])
+  if (!receipt) return null
+  return (
+    <div className="drawer-backdrop" onClick={onClose}>
+      <aside className="drawer" role="dialog" aria-label={`Receipt for ${receipt.label}`} onClick={(e) => e.stopPropagation()}>
+        <header className="panel__header">
+          <span className="panel__code">RCPT</span>
+          <span className="panel__title">{receipt.label}</span>
+          <button className="drawer__close" onClick={onClose} aria-label="Close">Esc ✕</button>
+        </header>
+        <div className="panel__body">
+          <ReceiptNode r={receipt} />
+        </div>
+      </aside>
+    </div>
   )
 }

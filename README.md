@@ -4,8 +4,9 @@ An open-source market research terminal that runs as a desktop app (and later as
 brings a data platform, an AI reasoning agent, analytics and a simulated exchange together in one
 keyboard-driven workspace, and it shows where every number comes from.
 
-> Status: **v0.1, foundation.** The app shell, backend, engine management and receipts layer work.
-> Market data, the reasoning agent, analytics panels and the simulator are the next milestones.
+> Status: **v0.2, market data.** Type a ticker to get a quote, chart, company profile and news, with a
+> receipt behind every number and automatic fallback between data providers. The reasoning agent,
+> analytics panels and simulator are the next milestones.
 
 ![FinHub v0.1](docs/screenshot.png)
 
@@ -28,7 +29,9 @@ agents are black boxes. FinHub is built around fixing those:
 app/                    Desktop app: Tauri 2 shell + React/TypeScript interface
   src-tauri/            Starts the backend on launch, stops it on exit
 backend/                Local API (FastAPI, 127.0.0.1:8765): receipts, engine registry
-engines/openbb/         Isolated env: OpenBB (market, fundamental, macro, news data)
+engines/openbb/         Isolated env: OpenBB + yfinance, and FinHub's data worker
+  worker.py             Long-lived process; JSON lines over stdin/stdout; exits when the backend does
+  providers.py          Provider chains: Yahoo → Cboe → Nasdaq → TMX (all free, no keys)
 engines/vibe-trading/   Isolated env: Vibe-Trading (reasoning agent, backtests, options, debates)
 ```
 
@@ -53,10 +56,38 @@ To work on the interface in a browser instead: run `uv run finhub-backend` in `b
 
 Keyboard: `Ctrl/Cmd+K` or `/` focuses the command bar, `↑`/`↓` walk command history. Type `HELP`.
 
+| Command | Does |
+|---|---|
+| `AAPL` | Quote, chart, profile and news for a ticker |
+| `EQ MSFT 5Y` | Same, with a chart range (`1M 3M 6M 1Y 5Y MAX`) |
+| `6M` or `RANGE 6M` | Change the open chart's range |
+| `SYS` / `HOME` | Engines and data-source health |
+| `REFRESH` | Reload the current view |
+
+Click any number to open its receipt: the provider, the provider's field name, when it was fetched,
+and for computed values (change, % change, distance from the 52-week high) the formula and inputs.
+FinHub computes those itself rather than trusting providers, which disagree on percent vs fraction.
+
+## Data sources
+
+Every request walks a chain of free providers and stops at the first that answers. Each attempt is
+recorded: the data panels say which provider served them and whether a fallback was needed, and the
+SYS panel tracks every provider's recent successes and failures.
+
+| Data | Chain |
+|---|---|
+| Quote | Yahoo → Cboe → Nasdaq → TMX |
+| Daily history | Yahoo → Cboe → Nasdaq → TMX |
+| Company profile | Yahoo → Nasdaq → TMX → FINRA |
+| News | Yahoo → Nasdaq → TMX |
+
+Yahoo is reached through the Apache-2.0 `yfinance` library. OpenBB's own yfinance extension is
+AGPL-3.0, so FinHub does not use it. Provider data is subject to each provider's terms of use.
+
 ## Roadmap
 
 1. **Foundation** ✅ App shell, self-starting backend, engine registry, receipts, CI.
-2. **Data and charts.** OpenBB behind the receipts layer; ticker, chart, fundamentals and news panels; data-source health and fallback.
+2. **Market data** ✅ Quote, chart, profile and news with receipts, provider fallback and source health. *Next within this step: fundamentals and financial statements, macro data, watchlists.*
 3. **Reasoning agent.** Vibe-Trading embedded; `ASK`, `BT` and `DEBATE` with a visible plan, data, code and validation; saved research notes.
 4. **Analytics panels.** Options, portfolio risk, screener, valuation.
 5. **Market simulator.** Our own exchange (order book, matching engine) with trading bots, plus an MCP server so outside AI agents can trade in it.

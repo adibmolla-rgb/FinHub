@@ -12,5 +12,18 @@ own environments and are not modified or redistributed as part of this repositor
   Vibe-Trading (https://github.com/HKUDS/Vibe-Trading)
     Copyright (c) HKUDS. Licensed under the MIT License.
 
+  yfinance (https://github.com/ranaroussi/yfinance)
+    Copyright (c) Ran Aroussi. Licensed under the Apache License, Version 2.0.
+
+FinHub's interface includes:
+
+  TradingView Lightweight Charts (https://github.com/tradingview/lightweight-charts)
+    Copyright (c) 2025 TradingView, Inc. https://www.tradingview.com/
+    Licensed under the Apache License, Version 2.0.
+
+Market data comes from third-party providers (Yahoo Finance, Cboe, Nasdaq, TMX, FINRA) under their
+own terms of use, which generally allow personal, non-commercial use. FinHub does not redistribute
+their data.
+
 FinHub is not affiliated with or endorsed by OpenBB Inc., HKUDS, Fincept Corporation, Bloomberg L.P.
 or Finnhub. Product names belong to their owners.

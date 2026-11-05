@@ -37,6 +37,9 @@ jobs:
       - uses: astral-sh/setup-uv@v6
       - run: uv sync
         working-directory: engines/openbb
+      - name: Data worker tests
+        run: uv run pytest -q
+        working-directory: engines/openbb
       - run: uv sync
         working-directory: engines/vibe-trading
       - run: uv sync

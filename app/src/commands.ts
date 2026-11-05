@@ -1,20 +1,28 @@
 // Command bar: everything in FinHub can be driven from the keyboard.
 
+import { RANGES, type Range } from './api'
+
 export type PanelId = 'SYS' | 'HELP' | 'RCPT' | 'LOG'
 
 export type CommandResult =
   | { kind: 'open'; panel: PanelId; message: string }
+  | { kind: 'ticker'; symbol: string; range?: Range; message: string }
+  | { kind: 'range'; range: Range; message: string }
+  | { kind: 'home'; message: string }
   | { kind: 'clear'; message: string }
   | { kind: 'refresh'; message: string }
   | { kind: 'error'; message: string }
 
 export const COMMANDS: { name: string; usage: string; description: string; status: 'ready' | 'planned' }[] = [
-  { name: 'HELP', usage: 'HELP', description: 'List every command', status: 'ready' },
-  { name: 'SYS', usage: 'SYS', description: 'Backend and engine status', status: 'ready' },
+  { name: '<TICKER>', usage: 'AAPL', description: 'Quote, chart, profile and news for a ticker', status: 'ready' },
+  { name: 'EQ', usage: 'EQ MSFT 5Y', description: 'Same, with a chart range (1M 3M 6M 1Y 5Y MAX)', status: 'ready' },
+  { name: 'RANGE', usage: '6M', description: 'Change the chart range of the open ticker', status: 'ready' },
+  { name: 'HOME', usage: 'HOME', description: 'Back to the home workspace', status: 'ready' },
+  { name: 'SYS', usage: 'SYS', description: 'Backend, engines and data-source health', status: 'ready' },
   { name: 'RCPT', usage: 'RCPT', description: 'How a number’s receipt works', status: 'ready' },
-  { name: 'REFRESH', usage: 'REFRESH', description: 'Re-check backend and engines', status: 'ready' },
+  { name: 'REFRESH', usage: 'REFRESH', description: 'Reload the current view and re-check engines', status: 'ready' },
   { name: 'CLEAR', usage: 'CLEAR', description: 'Clear the activity log', status: 'ready' },
-  { name: '<TICKER>', usage: 'AAPL', description: 'Quote, chart and fundamentals for a ticker', status: 'planned' },
+  { name: 'HELP', usage: 'HELP', description: 'List every command', status: 'ready' },
   { name: 'ASK', usage: 'ASK is NVDA momentum still working after costs?', description: 'Reasoning agent with a visible plan, data and code', status: 'planned' },
   { name: 'BT', usage: 'BT SPY sma 20 50', description: 'Backtest with costs and validation warnings', status: 'planned' },
   { name: 'DEBATE', usage: 'DEBATE TSLA', description: 'Bull vs bear agent committee', status: 'planned' },
@@ -22,23 +30,43 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'RCPT', 'LOG']
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
+
+function asRange(word: string | undefined): Range | undefined {
+  const w = word?.toUpperCase()
+  return (RANGES as readonly string[]).includes(w ?? '') ? (w as Range) : undefined
+}
 
 export function runCommand(input: string): CommandResult {
   const text = input.trim()
   if (!text) return { kind: 'error', message: 'Type a command, or HELP to list them.' }
-  const [head] = text.split(/\s+/)
-  const word = head.toUpperCase()
+  const words = text.split(/\s+/)
+  const word = words[0].toUpperCase()
 
-  if ((PANELS as string[]).includes(word)) {
-    return { kind: 'open', panel: word as PanelId, message: `Opened ${word}` }
-  }
+  if ((PANELS as string[]).includes(word)) return { kind: 'open', panel: word as PanelId, message: `Opened ${word}` }
+  if (word === 'HOME') return { kind: 'home', message: 'Home workspace' }
   if (word === 'CLEAR') return { kind: 'clear', message: 'Log cleared' }
-  if (word === 'REFRESH') return { kind: 'refresh', message: 'Re-checking backend and engines…' }
+  if (word === 'REFRESH') return { kind: 'refresh', message: 'Reloading…' }
+
+  const bareRange = asRange(word)
+  if (bareRange) return { kind: 'range', range: bareRange, message: `Chart range ${bareRange}` }
+  if (word === 'RANGE') {
+    const r = asRange(words[1])
+    return r ? { kind: 'range', range: r, message: `Chart range ${r}` } : { kind: 'error', message: `RANGE needs one of ${RANGES.join(' ')}` }
+  }
+
+  if (word === 'EQ') {
+    const sym = words[1]?.toUpperCase()
+    if (!sym || !SYMBOL.test(sym)) return { kind: 'error', message: 'EQ needs a ticker, e.g. EQ AAPL' }
+    return { kind: 'ticker', symbol: sym, range: asRange(words[2]), message: `Loading ${sym}…` }
+  }
 
   const planned = COMMANDS.find((c) => c.status === 'planned' && c.name === word)
   if (planned) return { kind: 'error', message: `${word} is planned but not built yet: ${planned.description}.` }
-  if (/^[A-Z.\-^]{1,10}$/.test(word)) {
-    return { kind: 'error', message: `Ticker views arrive with the data engine (next step). Got “${word}”.` }
+
+  if (SYMBOL.test(word) && !RESERVED.has(word)) {
+    return { kind: 'ticker', symbol: word, range: asRange(words[1]), message: `Loading ${word}…` }
   }
-  return { kind: 'error', message: `Unknown command “${head}”. Type HELP.` }
+  return { kind: 'error', message: `Unknown command “${words[0]}”. Type HELP.` }
 }

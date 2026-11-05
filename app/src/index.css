@@ -126,3 +126,69 @@ code { font-family: var(--mono); font-size: 12px; }
   .grid { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'sys' 'rcpt' 'help' 'log'; }
   .clock .muted { display: none; }
 }
+
+/* ---------- Ticker workspace ---------- */
+.grid--ticker {
+  grid-template-columns: 1.7fr 1fr;
+  grid-template-rows: auto minmax(260px, 1.4fr) minmax(180px, 1fr);
+  grid-template-areas: 'quote quote' 'chart news' 'profile log';
+}
+.grid__quote { grid-area: quote; }
+.grid__chart { grid-area: chart; }
+.grid__news { grid-area: news; }
+.grid__profile { grid-area: profile; }
+
+.quote {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 24px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px;
+}
+.quote__id { display: flex; align-items: baseline; gap: 8px; min-width: 180px; }
+.quote__sym { font: 700 18px var(--mono); color: var(--accent); }
+.quote__name { font-weight: 600; }
+.quote__price { display: flex; align-items: baseline; gap: 12px; font-family: var(--mono); }
+.quote__last { font-size: 22px; font-weight: 700; color: var(--text) !important; }
+.quote__stats { display: flex; flex-wrap: wrap; gap: 4px 18px; margin: 0; }
+.quote__stats div { display: flex; flex-direction: column; }
+.quote__stats dt { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.quote__stats dd { margin: 0; }
+.quote .data-error { flex-basis: 100%; }
+
+.val {
+  background: none; border: 0; padding: 0; font: inherit; font-family: var(--mono); color: inherit;
+  cursor: pointer; border-bottom: 1px dotted transparent;
+}
+.val:hover { border-bottom-color: currentColor; }
+.val.ok { color: var(--accent); }
+.val.bad { color: var(--bad); }
+
+.badge { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+
+.chart-wrap { display: flex; flex-direction: column; height: 100%; min-height: 220px; gap: 6px; }
+.chart-toolbar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.chart-toolbar .badge { margin-left: auto; }
+.chart { flex: 1; min-height: 200px; }
+.chip {
+  background: var(--bg); color: var(--muted); border: 1px solid var(--line); border-radius: 4px;
+  font: 11px var(--mono); padding: 2px 8px; cursor: pointer;
+}
+.chip--on { color: var(--bg); background: var(--accent); border-color: var(--accent); }
+
+.news { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 12.5px; }
+.description { margin: 0; color: var(--muted); font-size: 12px; max-height: 9em; overflow: auto; }
+
+.data-error p { margin: 0 0 6px; }
+.error-text { font-family: var(--mono); font-size: 11px; word-break: break-word; }
+
+/* Receipt drawer */
+.drawer-backdrop { position: fixed; inset: 0; background: rgb(0 0 0 / .45); display: flex; justify-content: flex-end; z-index: 10; }
+.drawer {
+  width: min(520px, 100%); height: 100%; display: flex; flex-direction: column;
+  background: var(--panel); border-left: 1px solid var(--accent);
+}
+.drawer__close { margin-left: auto; background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 4px; font: 11px var(--mono); cursor: pointer; }
+
+@media (max-width: 900px) {
+  .grid--ticker { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'quote' 'chart' 'news' 'profile' 'log'; }
+}
+.grid__chart .panel__body { display: flex; flex-direction: column; }
+.grid__chart .chart-wrap { flex: 1; height: auto; }

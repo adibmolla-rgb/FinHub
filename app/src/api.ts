@@ -32,23 +32,120 @@ export type Receipt = {
 
 export type ReceiptExample = { note: string; receipt: Receipt }
 
+export type Attempt = { provider: string; ok: boolean; error: string | null; ms: number | null }
+
+type SourceMeta = {
+  provider: string
+  provider_name: string
+  fetched_at: string
+  attempts: Attempt[]
+  fallback_used: boolean
+}
+
+export type QuoteKey =
+  | 'price' | 'previous_close' | 'open' | 'day_high' | 'day_low' | 'volume'
+  | 'market_cap' | 'year_high' | 'year_low' | 'change' | 'change_pct' | 'from_high_pct'
+
+export type Quote = SourceMeta & {
+  symbol: string
+  currency: string | null
+  exchange: string | null
+  values: Partial<Record<QuoteKey, Receipt>>
+}
+
+export type Bar = { time: string | number; open: number; high: number; low: number; close: number; volume: number }
+export type History = SourceMeta & { symbol: string; range: string; interval: string; adjusted: boolean; bars: Bar[] }
+
+export type Profile = SourceMeta & {
+  symbol: string
+  name: string
+  sector: string | null
+  industry: string | null
+  country: string | null
+  website: string | null
+  employees: number | null
+  description: string | null
+}
+
+export type NewsItem = { title: string; url: string | null; published: string | null; source: string | null; summary: string | null }
+export type News = SourceMeta & { symbol: string; items: NewsItem[] }
+
+export type SourceHealth = {
+  provider: string
+  status: 'ok' | 'failing' | 'unknown'
+  successes: number
+  failures: number
+  last_ok_at: string | null
+  last_error_at: string | null
+  last_error: string | null
+  last_ms: number | null
+  kinds: string[]
+}
+
+export const RANGES = ['1M', '3M', '6M', '1Y', '5Y', 'MAX'] as const
+export type Range = (typeof RANGES)[number]
+
+/** A failed request. For data requests, `attempts` lists every provider tried and why it failed. */
+export class ApiError extends Error {
+  status: number
+  attempts: Attempt[]
+  constructor(message: string, status: number, attempts: Attempt[] = []) {
+    super(message)
+    this.status = status
+    this.attempts = attempts
+  }
+}
+
 async function get<T>(path: string, timeoutMs = 4000): Promise<T> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
     const res = await fetch(`${BACKEND_URL}${path}`, { signal: ctrl.signal })
-    if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`)
+    if (!res.ok) {
+      let body: { error?: string; detail?: string; attempts?: Attempt[] } = {}
+      try {
+        body = await res.json()
+      } catch {
+        /* non-JSON error */
+      }
+      throw new ApiError(body.error ?? body.detail ?? `HTTP ${res.status}`, res.status, body.attempts ?? [])
+    }
     return (await res.json()) as T
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw new ApiError(`timed out after ${timeoutMs / 1000}s`, 0)
+    throw err
   } finally {
     clearTimeout(timer)
   }
 }
+
+const enc = encodeURIComponent
+// Data calls may walk several providers, and the first one after launch waits for OpenBB to load.
+const DATA_TIMEOUT = 120_000
 
 export const api = {
   health: () => get<Health>('/health', 2000),
   // Engine probes start each engine's own interpreter, so allow them longer.
   engines: (refresh = false) => get<EngineStatus[]>(refresh ? '/engines?refresh=true' : '/engines', 120_000),
   receiptExample: () => get<ReceiptExample>('/examples/receipt'),
+  quote: (s: string) => get<Quote>(`/market/quote/${enc(s)}`, DATA_TIMEOUT),
+  history: (s: string, range: Range) => get<History>(`/market/history/${enc(s)}?range=${range}`, DATA_TIMEOUT),
+  profile: (s: string) => get<Profile>(`/market/profile/${enc(s)}`, DATA_TIMEOUT),
+  news: (s: string) => get<News>(`/market/news/${enc(s)}?limit=20`, DATA_TIMEOUT),
+  sources: () => get<SourceHealth[]>('/market/sources'),
+}
+
+export function timeAgo(iso: string | null, now = Date.now()): string {
+  if (!iso) return '—'
+  const s = Math.max(0, Math.round((now - new Date(iso).getTime()) / 1000))
+  if (s < 60) return `${s}s ago`
+  if (s < 3600) return `${Math.round(s / 60)}m ago`
+  if (s < 86400) return `${Math.round(s / 3600)}h ago`
+  return `${Math.round(s / 86400)}d ago`
+}
+
+export function compact(n: number): string {
+  return Intl.NumberFormat(undefined, { notation: 'compact', maximumFractionDigits: 2 }).format(n)
 }
 
 export function formatValue(r: Pick<Receipt, 'value' | 'unit' | 'currency'>): string {
@@ -59,8 +156,12 @@ export function formatValue(r: Pick<Receipt, 'value' | 'unit' | 'currency'>): st
       return `${r.value.toFixed(2)}%`
     case 'bp':
       return `${r.value.toFixed(0)} bp`
-    case 'currency':
-      return `${r.currency ?? ''} ${r.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`.trim()
+    case 'currency': {
+      const n = Math.abs(r.value) >= 1e6 ? compact(r.value) : r.value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+      return `${r.currency ?? ''} ${n}`.trim()
+    }
+    case 'shares':
+      return compact(r.value)
     default:
       return r.value.toLocaleString(undefined, { maximumFractionDigits: 4 })
   }

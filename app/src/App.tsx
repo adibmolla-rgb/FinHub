@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, BACKEND_URL, type EngineStatus, type Health, type ReceiptExample } from './api'
+import { api, BACKEND_URL, type EngineStatus, type Health, type Range, type Receipt, type ReceiptExample, type SourceHealth } from './api'
 import { runCommand, type PanelId } from './commands'
-import { HelpPanel, LogPanel, Panel, ReceiptPanel, SystemPanel, type LogEntry } from './components'
+import { HelpPanel, LogPanel, Panel, ReceiptDrawer, ReceiptPanel, SystemPanel, type LogEntry } from './components'
+import { ChartPanel, NewsPanel, ProfilePanel, QuoteStrip } from './Ticker'
+import { useTicker } from './useTicker'
 
 function useClock() {
   const [now, setNow] = useState(() => new Date())
@@ -12,6 +14,27 @@ function useClock() {
   return now
 }
 
+type Workspace = { kind: 'home' } | { kind: 'ticker'; symbol: string; range: Range }
+
+function TickerWorkspace({ symbol, range, onRange, onReceipt, log }: {
+  symbol: string; range: Range; onRange: (r: Range) => void; onReceipt: (r: Receipt) => void; log: LogEntry[]
+}) {
+  const t = useTicker(symbol, range)
+  return (
+    <main className="grid grid--ticker">
+      <div className="grid__quote">
+        <QuoteStrip symbol={symbol} quote={t.quote} profile={t.profile} onReceipt={onReceipt} />
+      </div>
+      <ChartPanel history={t.history} range={range} onRange={onRange} />
+      <NewsPanel news={t.news} />
+      <ProfilePanel profile={t.profile} />
+      <Panel code="LOG" title="Activity" className="grid__log">
+        <LogPanel entries={log} />
+      </Panel>
+    </main>
+  )
+}
+
 export default function App() {
   const now = useClock()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -20,12 +43,16 @@ export default function App() {
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
   const [active, setActive] = useState<PanelId>('SYS')
+  const [workspace, setWorkspace] = useState<Workspace>({ kind: 'home' })
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [receipt, setReceipt] = useState<Receipt | null>(null)
 
   const [health, setHealth] = useState<Health | null>(null)
   const [healthError, setHealthError] = useState<string | null>(null)
   const [engines, setEngines] = useState<EngineStatus[] | null>(null)
   const [enginesLoading, setEnginesLoading] = useState(false)
   const [example, setExample] = useState<ReceiptExample | null>(null)
+  const [sources, setSources] = useState<SourceHealth[] | null>(null)
 
   const checkHealth = useCallback(async () => {
     try {
@@ -33,7 +60,7 @@ export default function App() {
       setHealthError(null)
     } catch (err) {
       setHealth(null)
-      setHealthError(err instanceof Error && err.name !== 'AbortError' ? err.message : 'no response')
+      setHealthError(err instanceof Error ? err.message : 'no response')
     }
   }, [])
 
@@ -48,7 +75,7 @@ export default function App() {
     }
   }, [])
 
-  // Poll the backend; load engine status once it comes online.
+  // Poll the backend; load engine status and examples once it comes online.
   useEffect(() => {
     checkHealth()
     const t = setInterval(checkHealth, 5000)
@@ -61,6 +88,15 @@ export default function App() {
     loadEngines()
     api.receiptExample().then(setExample, () => setExample(null))
   }, [online, loadEngines])
+
+  // Data-source health is cheap to fetch; keep it fresh while the backend is up.
+  useEffect(() => {
+    if (!online) return
+    const load = () => api.sources().then(setSources, () => {})
+    load()
+    const t = setInterval(load, 5000)
+    return () => clearInterval(t)
+  }, [online])
 
   // Ctrl/Cmd+K or "/" focuses the command bar from anywhere.
   useEffect(() => {
@@ -75,17 +111,37 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  const closeReceipt = useCallback(() => setReceipt(null), [])
+
   function submit() {
     const input = command.trim()
     if (!input) return
-    const result = runCommand(input)
+    let result = runCommand(input)
     setHistory((h) => [input, ...h].slice(0, 100))
     setHistoryIndex(null)
     setCommand('')
-    if (result.kind === 'open') setActive(result.panel)
-    if (result.kind === 'refresh') {
-      checkHealth()
-      loadEngines(true)
+    switch (result.kind) {
+      case 'open':
+        setWorkspace({ kind: 'home' })
+        setActive(result.panel)
+        break
+      case 'home':
+        setWorkspace({ kind: 'home' })
+        break
+      case 'ticker': {
+        const range = result.range ?? (workspace.kind === 'ticker' ? workspace.range : '1Y')
+        setWorkspace({ kind: 'ticker', symbol: result.symbol, range })
+        break
+      }
+      case 'range':
+        if (workspace.kind === 'ticker') setWorkspace({ ...workspace, range: result.range })
+        else result = { kind: 'error', message: 'Open a ticker first, e.g. AAPL' }
+        break
+      case 'refresh':
+        checkHealth()
+        loadEngines(true)
+        setRefreshKey((k) => k + 1)
+        break
     }
     const entry: LogEntry = { at: new Date(), input, message: result.message, ok: result.kind !== 'error' }
     setLog((l) => (result.kind === 'clear' ? [] : [entry, ...l].slice(0, 200)))
@@ -108,6 +164,7 @@ export default function App() {
   }
 
   const ready = engines?.filter((e) => e.available).length ?? 0
+  const failing = sources?.filter((s) => s.status === 'failing').length ?? 0
 
   return (
     <div className="shell">
@@ -123,7 +180,7 @@ export default function App() {
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={onCommandKey}
-            placeholder="Type a command — HELP, SYS, RCPT…   (Ctrl+K)"
+            placeholder="Ticker or command — AAPL, EQ MSFT 5Y, SYS, HELP…   (Ctrl+K)"
             spellCheck={false}
             autoComplete="off"
             autoFocus
@@ -136,28 +193,42 @@ export default function App() {
         </div>
       </header>
 
-      <main className="grid">
-        <Panel code="SYS" title="System status" active={active === 'SYS'} className="grid__sys">
-          <SystemPanel health={health} healthError={healthError} engines={engines} enginesLoading={enginesLoading} />
-        </Panel>
-        <Panel code="RCPT" title="Receipts — where every number comes from" active={active === 'RCPT'} className="grid__rcpt">
-          <ReceiptPanel example={example} />
-        </Panel>
-        <Panel code="HELP" title="Commands" active={active === 'HELP'} className="grid__help">
-          <HelpPanel />
-        </Panel>
-        <Panel code="LOG" title="Activity" active={active === 'LOG'} className="grid__log">
-          <LogPanel entries={log} />
-        </Panel>
-      </main>
+      {workspace.kind === 'ticker' ? (
+        <TickerWorkspace
+          key={`${workspace.symbol}-${refreshKey}`}
+          symbol={workspace.symbol}
+          range={workspace.range}
+          onRange={(range) => setWorkspace({ ...workspace, range })}
+          onReceipt={setReceipt}
+          log={log}
+        />
+      ) : (
+        <main className="grid">
+          <Panel code="SYS" title="System status" active={active === 'SYS'} className="grid__sys">
+            <SystemPanel health={health} healthError={healthError} engines={engines} enginesLoading={enginesLoading} sources={sources} />
+          </Panel>
+          <Panel code="RCPT" title="Receipts — where every number comes from" active={active === 'RCPT'} className="grid__rcpt">
+            <ReceiptPanel example={example} />
+          </Panel>
+          <Panel code="HELP" title="Commands" active={active === 'HELP'} className="grid__help">
+            <HelpPanel />
+          </Panel>
+          <Panel code="LOG" title="Activity" active={active === 'LOG'} className="grid__log">
+            <LogPanel entries={log} />
+          </Panel>
+        </main>
+      )}
+
+      <ReceiptDrawer receipt={receipt} onClose={closeReceipt} />
 
       <footer className="statusbar">
         <span className={online ? 'ok' : 'bad'}>● {online ? 'backend online' : 'backend offline'}</span>
-        <span className="muted">{BACKEND_URL}</span>
-        <span className="muted">
-          engines {engines ? `${ready}/${engines.length} ready` : '—'}
+        <span className="muted">engines {engines ? `${ready}/${engines.length} ready` : '—'}</span>
+        <span className={failing ? 'warn' : 'muted'}>
+          data sources {sources?.length ? `${sources.length - failing}/${sources.length} ok` : '—'}
         </span>
-        <span className="muted statusbar__right">FinHub v0.1.0 · Apache-2.0</span>
+        {workspace.kind === 'ticker' && <span className="muted">{workspace.symbol} · {workspace.range}</span>}
+        <span className="muted statusbar__right">{BACKEND_URL} · FinHub v0.2.0</span>
       </footer>
     </div>
   )
