@@ -1,6 +1,6 @@
 // Command bar: everything in FinHub can be driven from the keyboard.
 
-import { RANGES, type Range } from './api'
+import { RANGES, type AskKind, type Range } from './api'
 
 export type PanelId = 'SYS' | 'HELP' | 'RCPT' | 'LOG'
 
@@ -9,6 +9,8 @@ export type CommandResult =
   | { kind: 'ticker'; symbol: string; range?: Range; message: string }
   | { kind: 'range'; range: Range; message: string }
   | { kind: 'home'; message: string }
+  | { kind: 'agent'; ask: AskKind; text: string; message: string }
+  | { kind: 'ai'; message: string }
   | { kind: 'clear'; message: string }
   | { kind: 'refresh'; message: string }
   | { kind: 'error'; message: string }
@@ -23,14 +25,15 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'REFRESH', usage: 'REFRESH', description: 'Reload the current view and re-check engines', status: 'ready' },
   { name: 'CLEAR', usage: 'CLEAR', description: 'Clear the activity log', status: 'ready' },
   { name: 'HELP', usage: 'HELP', description: 'List every command', status: 'ready' },
-  { name: 'ASK', usage: 'ASK is NVDA momentum still working after costs?', description: 'Reasoning agent with a visible plan, data and code', status: 'planned' },
-  { name: 'BT', usage: 'BT SPY sma 20 50', description: 'Backtest with costs and validation warnings', status: 'planned' },
-  { name: 'DEBATE', usage: 'DEBATE TSLA', description: 'Bull vs bear agent committee', status: 'planned' },
+  { name: 'ASK', usage: 'ASK is NVDA momentum still working after costs?', description: 'Reasoning agent with a visible trace of every tool it uses', status: 'ready' },
+  { name: 'BT', usage: 'BT SPY 20/50 day moving-average crossover', description: 'Agent backtest with costs, buy-and-hold comparison and validation warnings', status: 'ready' },
+  { name: 'DEBATE', usage: 'DEBATE TSLA', description: 'Bull case, bear case and a neutral judge', status: 'ready' },
+  { name: 'AI', usage: 'AI', description: 'Choose the AI provider (Claude, OpenAI or local Ollama) and key', status: 'ready' },
   { name: 'SIM', usage: 'SIM start', description: 'Simulated exchange with trading bots', status: 'planned' },
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'RCPT', 'LOG']
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -60,6 +63,13 @@ export function runCommand(input: string): CommandResult {
     const sym = words[1]?.toUpperCase()
     if (!sym || !SYMBOL.test(sym)) return { kind: 'error', message: 'EQ needs a ticker, e.g. EQ AAPL' }
     return { kind: 'ticker', symbol: sym, range: asRange(words[2]), message: `Loading ${sym}…` }
+  }
+
+  if (word === 'AI' || word === 'SETTINGS') return { kind: 'ai', message: 'AI settings' }
+  if (word === 'ASK' || word === 'BT' || word === 'DEBATE') {
+    const rest = text.slice(words[0].length).trim()
+    if (!rest) return { kind: 'error', message: `${word} needs something to work on, e.g. ${COMMANDS.find((c) => c.name === word)?.usage}` }
+    return { kind: 'agent', ask: word.toLowerCase() as AskKind, text: rest, message: `${word}: ${rest}` }
   }
 
   const planned = COMMANDS.find((c) => c.status === 'planned' && c.name === word)

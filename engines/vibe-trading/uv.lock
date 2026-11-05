@@ -153,6 +153,25 @@ wheels = [
 ]
 
 [[package]]
+name = "anthropic"
+version = "2.5.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anyio" },
+    { name = "docstring-parser" },
+    { name = "httpx2" },
+    { name = "jiter" },
+    { name = "opentelemetry-api" },
+    { name = "pydantic" },
+    { name = "sniffio" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/25/b0/bb46b86bc12e0c176f22363f6fc1fa6484844ba624f868154c3894d1c294/anthropic-2.5.0.tar.gz", hash = "sha256:898848f23c473aca52b4d1b496c22e5f6125246c31e0b2161ef98cb0384131a0", size = 1962741, upload-time = "2026-11-04T20:27:46.038Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/10/c4e6f015111c702c2d5a386ad57745b83c79c08eae68e541dbb16b5e3965/anthropic-2.5.0-py3-none-any.whl", hash = "sha256:79756a8cafa23a8c0ab636700914d34ee968039eb6e466a8aa748210713f4c00", size = 2445606, upload-time = "2026-11-04T20:27:48.007Z" },
+]
+
+[[package]]
 name = "anyio"
 version = "4.16.0"
 source = { registry = "https://pypi.org/simple" }
@@ -855,11 +874,11 @@ name = "finhub-engine-vibe-trading"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "vibe-trading-ai" },
+    { name = "vibe-trading-ai", extra = ["anthropic"] },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "vibe-trading-ai" }]
+requires-dist = [{ name = "vibe-trading-ai", extras = ["anthropic"], specifier = ">=0.1.18" }]
 
 [[package]]
 name = "fonttools"
@@ -1396,6 +1415,20 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f9/f4/97e0425ce79e67aeaa090be3ac1b5f51244837f48d99ea01e84820775607/langchain-1.4.9.tar.gz", hash = "sha256:449905dd841442562f897267ceaa05f80f42daa2cf019549b2650a9b02e85d8b", size = 771011, upload-time = "2026-11-04T17:07:22.158Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/39/35/d7af5ed4e82f8bb43b36460e72b6d43f4ac16626d79e31d25c49e6bee697/langchain-1.4.9-py3-none-any.whl", hash = "sha256:87cf3c15dfddaebd0e421d253e3b4abf70b70d6e18e56c45b9eb1873cc46f154", size = 171661, upload-time = "2026-11-04T17:07:20.201Z" },
+]
+
+[[package]]
+name = "langchain-anthropic"
+version = "1.7.10"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "anthropic" },
+    { name = "langchain-core" },
+    { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/cc/10/4fe4b78ec3f539447fa4774c5e8ef4ffa27c3394c1d93df646418cc97a5a/langchain_anthropic-1.7.10.tar.gz", hash = "sha256:72869686960b3d6665f99e7c91c9f6dd4a1d9ccf73d23edd8702eb603cc2e498", size = 768017, upload-time = "2026-11-04T16:50:53.531Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/c4/5f/145e047dffdb6778dd633c484f7c176dad6a8a99e11b156321ac2b3b147f/langchain_anthropic-1.7.10-py3-none-any.whl", hash = "sha256:9ba64332784bddedabbeb24f5f5759f2d0dfe58244e0ef07e313e039b21ecb1f", size = 65780, upload-time = "2026-11-04T16:50:52.027Z" },
 ]
 
 [[package]]
@@ -3163,6 +3196,11 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/09/26/402ec76af28c9bb2297bcfb2fb623d08c9f0acc3f90781481d50698384ef/vibe_trading_ai-0.1.18.tar.gz", hash = "sha256:d2324f0295e6ef5fe0f1b72a18a4a6e2aed2d997815a0e6759e2ba66d7a789d5", size = 17753205, upload-time = "2026-10-21T14:50:17.898Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/f8/21/ae5031a443c7a33f85f7a4143ccb786fae8f977ea058211a850e15d35277/vibe_trading_ai-0.1.18-py3-none-any.whl", hash = "sha256:33e248a5d3bed7b4fa129e7773cd79eb7cce2989891bfafbee1b8c10ecbe049d", size = 15487168, upload-time = "2026-10-21T14:49:56.845Z" },
+]
+
+[package.optional-dependencies]
+anthropic = [
+    { name = "langchain-anthropic" },
 ]
 
 [[package]]

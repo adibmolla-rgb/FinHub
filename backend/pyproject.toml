@@ -1,6 +1,6 @@
 [project]
 name = "finhub-backend"
-version = "0.2.0"
+version = "0.3.0"
 description = "Local engine service for FinHub: data, reasoning agent, analytics and market simulator behind one API."
 license = "Apache-2.0"
 authors = [{ name = "Adib Molla" }]
@@ -9,6 +9,7 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.30",
     "pydantic>=2.8",
+    "httpx>=0.27",
 ]
 
 # Engines (OpenBB, Vibe-Trading, ...) are NOT dependencies of the backend. Each lives in its own

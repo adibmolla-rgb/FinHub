@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, BACKEND_URL, type EngineStatus, type Health, type Range, type Receipt, type ReceiptExample, type SourceHealth } from './api'
+import { api, BACKEND_URL, type EngineStatus, type Health, type InstallState, type Range, type Receipt, type ReceiptExample, type SourceHealth } from './api'
+import { backendPhase, inDesktopApp, type BackendPhase } from './tauri'
 import { runCommand, type PanelId } from './commands'
 import { HelpPanel, LogPanel, Panel, ReceiptDrawer, ReceiptPanel, SystemPanel, type LogEntry } from './components'
 import { ChartPanel, NewsPanel, ProfilePanel, QuoteStrip } from './Ticker'
 import { useTicker } from './useTicker'
+import { AgentSettingsPanel, AgentWorkspace } from './Agent'
+import type { AskKind } from './api'
 
 function useClock() {
   const [now, setNow] = useState(() => new Date())
@@ -14,7 +17,11 @@ function useClock() {
   return now
 }
 
-type Workspace = { kind: 'home' } | { kind: 'ticker'; symbol: string; range: Range }
+type Workspace =
+  | { kind: 'home' }
+  | { kind: 'ticker'; symbol: string; range: Range }
+  | { kind: 'agent'; ask: AskKind; text: string; nonce: number }
+  | { kind: 'ai' }
 
 function TickerWorkspace({ symbol, range, onRange, onReceipt, log }: {
   symbol: string; range: Range; onRange: (r: Range) => void; onReceipt: (r: Receipt) => void; log: LogEntry[]
@@ -53,6 +60,8 @@ export default function App() {
   const [enginesLoading, setEnginesLoading] = useState(false)
   const [example, setExample] = useState<ReceiptExample | null>(null)
   const [sources, setSources] = useState<SourceHealth[] | null>(null)
+  const [installs, setInstalls] = useState<Record<string, InstallState>>({})
+  const [phase, setPhase] = useState<BackendPhase | null>(null)
 
   const checkHealth = useCallback(async () => {
     try {
@@ -88,6 +97,40 @@ export default function App() {
     loadEngines()
     api.receiptExample().then(setExample, () => setExample(null))
   }, [online, loadEngines])
+
+  // While the desktop app prepares the backend (first launch installs Python), show what it is doing.
+  useEffect(() => {
+    if (!inDesktopApp || health) return
+    const poll = () => backendPhase().then(setPhase)
+    poll()
+    const t = setInterval(poll, 1000)
+    return () => clearInterval(t)
+  }, [health])
+
+  // Track engine installs (started automatically on first launch, or from the SYS panel).
+  const anyInstalling = Object.values(installs).some((i) => i.state === 'running')
+  useEffect(() => {
+    if (!online || !engines) return
+    const poll = async () => {
+      const entries = await Promise.all(
+        engines.map((e) => api.installStatus(e.id).then((s) => [e.id, s] as const, () => null)),
+      )
+      const next = Object.fromEntries(entries.filter((x): x is readonly [string, InstallState] => x !== null))
+      setInstalls((prev) => {
+        // An install just finished: re-probe engines.
+        const finished = Object.entries(next).some(([id, s]) => prev[id]?.state === 'running' && s.state !== 'running')
+        if (finished) loadEngines(true)
+        return next
+      })
+    }
+    poll()
+    const t = setInterval(poll, anyInstalling ? 1500 : 10_000)
+    return () => clearInterval(t)
+  }, [online, engines, anyInstalling, loadEngines])
+
+  const startInstall = useCallback((id: string) => {
+    api.installEngine(id).then((s) => setInstalls((prev) => ({ ...prev, [id]: s })), () => {})
+  }, [])
 
   // Data-source health is cheap to fetch; keep it fresh while the backend is up.
   useEffect(() => {
@@ -137,6 +180,12 @@ export default function App() {
         if (workspace.kind === 'ticker') setWorkspace({ ...workspace, range: result.range })
         else result = { kind: 'error', message: 'Open a ticker first, e.g. AAPL' }
         break
+      case 'agent':
+        setWorkspace({ kind: 'agent', ask: result.ask, text: result.text, nonce: Date.now() })
+        break
+      case 'ai':
+        setWorkspace({ kind: 'ai' })
+        break
       case 'refresh':
         checkHealth()
         loadEngines(true)
@@ -180,7 +229,7 @@ export default function App() {
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={onCommandKey}
-            placeholder="Ticker or command — AAPL, EQ MSFT 5Y, SYS, HELP…   (Ctrl+K)"
+            placeholder="Ticker or command — AAPL, ASK …, BT …, DEBATE TSLA, AI, HELP   (Ctrl+K)"
             spellCheck={false}
             autoComplete="off"
             autoFocus
@@ -193,7 +242,32 @@ export default function App() {
         </div>
       </header>
 
-      {workspace.kind === 'ticker' ? (
+      {!online && phase && phase.phase !== 'running' && (
+        <div className={`banner ${phase.phase === 'failed' ? 'banner--bad' : ''}`} role="status">
+          <strong>{phase.phase === 'failed' ? 'FinHub could not start its backend.' : 'Starting FinHub…'}</strong> {phase.detail}
+          {phase.logs_dir && <span className="muted"> Logs: {phase.logs_dir}</span>}
+        </div>
+      )}
+      {online && installs.openbb?.state === 'running' && (
+        <div className="banner" role="status">
+          <strong>Installing the market-data engine (OpenBB).</strong> This happens once and takes a few minutes; market
+          data works as soon as it finishes. Progress is in SYS.
+        </div>
+      )}
+      {workspace.kind === 'agent' ? (
+        <AgentWorkspace
+          key={workspace.nonce}
+          kind={workspace.ask}
+          text={workspace.text}
+          onOpenSettings={() => setWorkspace({ kind: 'ai' })}
+        />
+      ) : workspace.kind === 'ai' ? (
+        <main className="grid grid--single">
+          <Panel code="AI" title="AI provider for ASK, BT and DEBATE" className="grid__single">
+            <AgentSettingsPanel onSaved={() => {}} />
+          </Panel>
+        </main>
+      ) : workspace.kind === 'ticker' ? (
         <TickerWorkspace
           key={`${workspace.symbol}-${refreshKey}`}
           symbol={workspace.symbol}
@@ -205,7 +279,10 @@ export default function App() {
       ) : (
         <main className="grid">
           <Panel code="SYS" title="System status" active={active === 'SYS'} className="grid__sys">
-            <SystemPanel health={health} healthError={healthError} engines={engines} enginesLoading={enginesLoading} sources={sources} />
+            <SystemPanel
+              health={health} healthError={healthError} engines={engines} enginesLoading={enginesLoading}
+              sources={sources} installs={installs} onInstall={startInstall}
+            />
           </Panel>
           <Panel code="RCPT" title="Receipts — where every number comes from" active={active === 'RCPT'} className="grid__rcpt">
             <ReceiptPanel example={example} />
@@ -228,7 +305,7 @@ export default function App() {
           data sources {sources?.length ? `${sources.length - failing}/${sources.length} ok` : '—'}
         </span>
         {workspace.kind === 'ticker' && <span className="muted">{workspace.symbol} · {workspace.range}</span>}
-        <span className="muted statusbar__right">{BACKEND_URL} · FinHub v0.2.0</span>
+        <span className="muted statusbar__right">{BACKEND_URL} · FinHub v0.3.0</span>
       </footer>
     </div>
   )

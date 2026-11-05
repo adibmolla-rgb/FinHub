@@ -1,13 +1,13 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "FinHub",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "identifier": "app.finhub.terminal",
   "build": {
     "frontendDist": "../dist",
     "devUrl": "http://localhost:1420",
-    "beforeDevCommand": "pnpm dev",
-    "beforeBuildCommand": "pnpm build"
+    "beforeDevCommand": "node scripts/stage-python.mjs && pnpm dev",
+    "beforeBuildCommand": "node scripts/stage-python.mjs && pnpm build"
   },
   "app": {
     "windows": [
@@ -27,7 +27,14 @@
   },
   "bundle": {
     "active": true,
-    "targets": "all",
+    "targets": [
+      "nsis",
+      "msi",
+      "dmg",
+      "app",
+      "deb",
+      "appimage"
+    ],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -37,6 +44,15 @@
     ],
     "android": {
       "debugApplicationIdSuffix": ".debug"
-    }
+    },
+    "resources": {
+      "pybundle/": "python/"
+    },
+    "externalBin": [
+      "binaries/finhub-uv"
+    ],
+    "publisher": "FinHub",
+    "shortDescription": "Open-source market research terminal",
+    "copyright": "Copyright 2026 Adib Molla. Apache-2.0."
   }
 }

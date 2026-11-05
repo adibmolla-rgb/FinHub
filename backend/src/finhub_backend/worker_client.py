@@ -15,6 +15,8 @@ from concurrent.futures import Future
 from concurrent.futures import TimeoutError as FutureTimeout
 from pathlib import Path
 
+from finhub_backend.engines import NO_WINDOW
+
 
 class WorkerError(Exception):
     def __init__(self, message: str, attempts: list[dict] | None = None):
@@ -51,6 +53,7 @@ class EngineWorker:
             text=True,
             encoding="utf-8",
             bufsize=1,
+            **NO_WINDOW,
         )
         threading.Thread(target=self._read, args=(self._proc,), daemon=True, name="worker-reader").start()
 

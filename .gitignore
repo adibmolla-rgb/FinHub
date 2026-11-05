@@ -17,3 +17,7 @@ app/src-tauri/gen/schemas/
 .idea/
 .vscode/
 *.log
+
+# Staged at build time by app/scripts/stage-python.mjs
+app/src-tauri/pybundle/
+app/src-tauri/binaries/

@@ -21,11 +21,15 @@ function SourceBadge({ meta }: { meta: Meta }) {
 
 function DataError({ error, what }: { error: ApiError | Error; what: string }) {
   const attempts = error instanceof ApiError ? error.attempts : []
+  const engineMissing = /engine not installed/.test(error.message)
   return (
     <div className="data-error">
       <p>
         <span className="bad">Couldn’t load {what}.</span> <span className="muted">{error.message}</span>
       </p>
+      {engineMissing && (
+        <p className="warn">The market-data engine isn’t installed yet. It installs automatically on first launch; check progress or start it in SYS, then REFRESH.</p>
+      )}
       {attempts.length > 0 && (
         <table className="table">
           <tbody>

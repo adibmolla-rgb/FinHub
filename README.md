@@ -4,9 +4,40 @@ An open-source market research terminal that runs as a desktop app (and later as
 brings a data platform, an AI reasoning agent, analytics and a simulated exchange together in one
 keyboard-driven workspace, and it shows where every number comes from.
 
-> Status: **v0.2, market data.** Type a ticker to get a quote, chart, company profile and news, with a
-> receipt behind every number and automatic fallback between data providers. The reasoning agent,
-> analytics panels and simulator are the next milestones.
+> Status: **v0.3.** Market data with receipts and provider fallback; an AI reasoning agent (`ASK`, `BT`,
+> `DEBATE`) with a visible trace of every tool it uses; installers for Windows, macOS and Linux that set
+> everything up themselves. Analytics panels and the market simulator are next.
+
+## Install
+
+Download the installer for your system from the
+[latest release](https://github.com/adibmolla-rgb/FinHub/releases):
+
+| System | File |
+|---|---|
+| Windows | `FinHub_x.y.z_x64-setup.exe` (or the `.msi`) |
+| macOS (Apple Silicon) | `FinHub_x.y.z_aarch64.dmg` |
+| Linux | `.deb` or `.AppImage` |
+
+You don't need Python or anything else. **The first launch takes a few minutes**: FinHub downloads its
+own private copy of Python, then installs the market-data engine (a few hundred MB, once). A banner
+shows progress; later launches start in about a second.
+
+The installers are not code-signed yet, so your system will warn you the first time:
+
+- **Windows:** "Windows protected your PC" → *More info* → *Run anyway*.
+- **macOS:** if it says the app "is damaged" or "can't be opened", run
+  `xattr -cr /Applications/FinHub.app` in Terminal, then open it again.
+
+FinHub keeps its data in your user profile (`%LOCALAPPDATA%\app.finhub.terminal` on Windows,
+`~/Library/Application Support/app.finhub.terminal` on macOS, `~/.local/share/app.finhub.terminal` on
+Linux), including `logs/` if something goes wrong.
+
+### AI agent setup
+
+Type `AI` and choose a provider: **Claude** or **OpenAI** (paste an API key), or **Ollama** to run a
+model locally for free. Then `ASK …`, `BT …` or `DEBATE …`. The first agent command installs the
+agent engine (Vibe-Trading) if it isn't installed yet; you can also install it from `SYS`.
 
 ![FinHub v0.1](docs/screenshot.png)
 
@@ -39,10 +70,11 @@ The backend never imports an engine. Engines pin conflicting dependencies (OpenB
 `fastmcp>=4`, Vibe-Trading needs `fastmcp<4`), so each lives in its own environment and runs as a
 separate process. If the app is closed, crashes or is force-quit, the backend shuts itself down.
 
-## Run it
+## Build from source
 
 Requirements: [uv](https://docs.astral.sh/uv/), Node 20+ with pnpm, Rust, and on Linux the
-[Tauri system libraries](https://v2.tauri.app/start/prerequisites/).
+[Tauri system libraries](https://v2.tauri.app/start/prerequisites/). `pnpm tauri build` in `app/`
+produces installers; push a `v*` tag and GitHub Actions builds them for all three systems.
 
 ```bash
 cd backend && uv sync && cd ..
@@ -63,6 +95,10 @@ Keyboard: `Ctrl/Cmd+K` or `/` focuses the command bar, `↑`/`↓` walk command 
 | `6M` or `RANGE 6M` | Change the open chart's range |
 | `SYS` / `HOME` | Engines and data-source health |
 | `REFRESH` | Reload the current view |
+| `ASK <question>` | Reasoning agent; the trace panel shows every tool call, its inputs and result |
+| `BT <strategy>` | Agent backtest with costs, next-bar fills, buy-and-hold comparison and validation warnings |
+| `DEBATE <ticker>` | Bull case, bear case and a neutral judge |
+| `AI` | Choose the AI provider, model and key |
 
 Click any number to open its receipt: the provider, the provider's field name, when it was fetched,
 and for computed values (change, % change, distance from the 52-week high) the formula and inputs.
@@ -88,10 +124,10 @@ AGPL-3.0, so FinHub does not use it. Provider data is subject to each provider's
 
 1. **Foundation** ✅ App shell, self-starting backend, engine registry, receipts, CI.
 2. **Market data** ✅ Quote, chart, profile and news with receipts, provider fallback and source health. *Next within this step: fundamentals and financial statements, macro data, watchlists.*
-3. **Reasoning agent.** Vibe-Trading embedded; `ASK`, `BT` and `DEBATE` with a visible plan, data, code and validation; saved research notes.
+3. **Reasoning agent** ✅ Vibe-Trading embedded; `ASK`, `BT` and `DEBATE` with a live reasoning trace. *Next: saved research notes and re-runs.*
 4. **Analytics panels.** Options, portfolio risk, screener, valuation.
 5. **Market simulator.** Our own exchange (order book, matching engine) with trading bots, plus an MCP server so outside AI agents can trade in it.
-6. **Polish.** Dockable layouts, a self-managed Python runtime so users install nothing else, signed installers, a web demo.
+6. **Polish.** Self-installing Python runtime ✅ · installers for all three systems ✅ · next: dockable layouts, code signing, auto-update, a web demo.
 
 ## Licence
 

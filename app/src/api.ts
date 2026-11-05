@@ -96,11 +96,20 @@ export class ApiError extends Error {
   }
 }
 
-async function get<T>(path: string, timeoutMs = 4000): Promise<T> {
+export type InstallState = {
+  engine: string
+  state: 'idle' | 'running' | 'done' | 'failed'
+  started_at: number | null
+  finished_at: number | null
+  error: string | null
+  log_tail: string[]
+}
+
+async function get<T>(path: string, timeoutMs = 4000, method: 'GET' | 'POST' = 'GET'): Promise<T> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
-    const res = await fetch(`${BACKEND_URL}${path}`, { signal: ctrl.signal })
+    const res = await fetch(`${BACKEND_URL}${path}`, { signal: ctrl.signal, method })
     if (!res.ok) {
       let body: { error?: string; detail?: string; attempts?: Attempt[] } = {}
       try {
@@ -133,6 +142,8 @@ export const api = {
   profile: (s: string) => get<Profile>(`/market/profile/${enc(s)}`, DATA_TIMEOUT),
   news: (s: string) => get<News>(`/market/news/${enc(s)}?limit=20`, DATA_TIMEOUT),
   sources: () => get<SourceHealth[]>('/market/sources'),
+  installEngine: (id: string) => get<InstallState>(`/engines/${enc(id)}/install`, 10_000, 'POST'),
+  installStatus: (id: string) => get<InstallState>(`/engines/${enc(id)}/install`),
 }
 
 export function timeAgo(iso: string | null, now = Date.now()): string {
@@ -165,4 +176,57 @@ export function formatValue(r: Pick<Receipt, 'value' | 'unit' | 'currency'>): st
     default:
       return r.value.toLocaleString(undefined, { maximumFractionDigits: 4 })
   }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Reasoning agent
+// ---------------------------------------------------------------------------------------------
+
+export type AgentProvider = 'anthropic' | 'openai' | 'ollama'
+
+export type AgentSettings = {
+  provider: AgentProvider
+  model: string
+  ollama_url: string
+  has_api_key: boolean
+  api_key_hint: string
+  configured: boolean
+  providers: Record<AgentProvider, { label: string; default_model: string }>
+}
+
+export type AskKind = 'ask' | 'bt' | 'debate'
+export type AskStarted = { session_id: string; prompt: string; kind: AskKind; text: string }
+export type AgentMessage = { message_id: string; role: string; content: string; created_at: string }
+
+async function send<T>(path: string, method: 'POST' | 'PUT', body: unknown, timeoutMs = 240_000): Promise<T> {
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs)
+  try {
+    const res = await fetch(`${BACKEND_URL}${path}`, {
+      method,
+      signal: ctrl.signal,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) throw new ApiError(data.error ?? data.detail ?? `HTTP ${res.status}`, res.status)
+    return data as T
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') throw new ApiError(`timed out after ${timeoutMs / 1000}s`, 0)
+    throw err
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+export const agentApi = {
+  settings: () => get<AgentSettings>('/agent/settings'),
+  saveSettings: (update: Partial<{ provider: AgentProvider; model: string; api_key: string; ollama_url: string }>) =>
+    send<AgentSettings>('/agent/settings', 'PUT', update, 15_000),
+  // Starting the agent the first time can take a while (it launches Vibe-Trading).
+  ask: (kind: AskKind, text: string) => send<AskStarted>('/agent/ask', 'POST', { kind, text }),
+  messages: (id: string) => get<AgentMessage[]>(`/agent/sessions/${enc(id)}/messages`, 30_000),
+  state: (id: string) => get<{ session_status: string; attempt: { status: string; error: string | null } | null }>(`/agent/sessions/${enc(id)}/state`, 15_000),
+  cancel: (id: string) => send<unknown>(`/agent/sessions/${enc(id)}/cancel`, 'POST', {}, 15_000),
+  eventsUrl: (id: string) => `${BACKEND_URL}/agent/sessions/${enc(id)}/events`,
 }

@@ -2,26 +2,37 @@
 
 from __future__ import annotations
 
+import json
 import os
 import platform
+import re
 import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 
+import httpx
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from finhub_backend import __version__, engines, market
+from finhub_backend import __version__, agent, engines, installer, market
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # Warm the engine cache in the background so the first /engines call is fast.
-    threading.Thread(target=engines.statuses, daemon=True).start()
-    if os.environ.get("FINHUB_SKIP_WARMUP") != "1":
-        market.warmup()
+    def startup() -> None:
+        statuses = {s.id: s for s in engines.statuses()}
+        # Installed apps set FINHUB_AUTO_INSTALL so the data engine sets itself up on first launch.
+        if os.environ.get("FINHUB_AUTO_INSTALL") == "1" and not statuses["openbb"].available:
+            installer.install("openbb")
+        elif os.environ.get("FINHUB_SKIP_WARMUP") != "1" and statuses["openbb"].available:
+            market.warmup()
+
+    threading.Thread(target=startup, daemon=True, name="startup").start()
     yield
     market.worker().stop()
+    agent.server.stop()
 
 
 app = FastAPI(title="FinHub backend", version=__version__, lifespan=lifespan)
@@ -34,8 +45,10 @@ app.add_middleware(
         "http://127.0.0.1:1420",
         "tauri://localhost",
         "http://tauri.localhost",
+        "https://tauri.localhost",
     ],
     allow_methods=["*"],
+    expose_headers=["*"],
     allow_headers=["*"],
 )
 
@@ -53,6 +66,21 @@ def health() -> dict:
 @app.get("/engines")
 def list_engines(refresh: bool = False) -> list[dict]:
     return [asdict(s) for s in engines.statuses(refresh=refresh)]
+
+
+@app.post("/engines/{engine_id}/install")
+def install_engine(engine_id: str) -> dict:
+    try:
+        return installer.install(engine_id).public()
+    except KeyError:
+        raise HTTPException(status_code=404, detail="unknown engine") from None
+
+
+@app.get("/engines/{engine_id}/install")
+def install_status(engine_id: str) -> dict:
+    if engine_id not in {e.id for e in engines.ENGINES}:
+        raise HTTPException(status_code=404, detail="unknown engine")
+    return installer.state(engine_id).public()
 
 
 @app.get("/examples/receipt")
@@ -129,6 +157,122 @@ def market_news(symbol: str, limit: int = Query(20, ge=1, le=50)):
 @app.get("/market/sources")
 def market_sources() -> list[dict]:
     return market.source_health()
+
+
+# --------------------------------------------------------------------------------------------------
+# Reasoning agent (Vibe-Trading)
+# --------------------------------------------------------------------------------------------------
+
+
+class AgentSettingsUpdate(BaseModel):
+    provider: str | None = None
+    model: str | None = None
+    api_key: str | None = None  # omit to keep the stored key; "" to clear it
+    ollama_url: str | None = None
+
+
+class AskRequest(BaseModel):
+    kind: str = Field("ask", pattern="^(ask|bt|debate)$")
+    text: str = Field(min_length=1, max_length=4000)
+
+
+@app.get("/agent/settings")
+def get_agent_settings() -> dict:
+    return agent.load_settings().public()
+
+
+@app.put("/agent/settings")
+def put_agent_settings(update: AgentSettingsUpdate) -> dict:
+    try:
+        return agent.save_settings(update.model_dump(exclude_unset=True)).public()
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/agent/status")
+def agent_status() -> dict:
+    return {**agent.server.status(), "settings": agent.load_settings().public()}
+
+
+async def _agent_request(method: str, path: str, **kwargs) -> httpx.Response:
+    async with httpx.AsyncClient(base_url=agent.AGENT_URL, timeout=60) as client:
+        return await client.request(method, path, **kwargs)
+
+
+@app.post("/agent/ask")
+async def agent_ask(req: AskRequest):
+    import anyio
+
+    try:
+        await anyio.to_thread.run_sync(agent.server.ensure)
+    except agent.AgentNotReady as exc:
+        return JSONResponse(status_code=503, content={"error": str(exc)})
+    prompt = agent.build_prompt(req.kind, req.text)
+    title = f"{req.kind.upper()}: {req.text}"[:80]
+    try:
+        created = await _agent_request("POST", "/sessions", json={"title": title})
+        created.raise_for_status()
+        session_id = created.json()["session_id"]
+        sent = await _agent_request("POST", f"/sessions/{session_id}/messages", json={"content": prompt})
+        sent.raise_for_status()
+    except httpx.HTTPError as exc:
+        return JSONResponse(status_code=502, content={"error": f"agent request failed: {exc}"})
+    return {"session_id": session_id, "prompt": prompt, "kind": req.kind, "text": req.text}
+
+
+@app.get("/agent/sessions/{session_id}/events")
+async def agent_events(session_id: str):
+    """Relay the agent's server-sent events (plan, tool calls, results, answer text) to the UI."""
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{1,80}", session_id):
+        raise HTTPException(status_code=422, detail="invalid session id")
+
+    async def relay():
+        try:
+            async with httpx.AsyncClient(base_url=agent.AGENT_URL, timeout=None) as client:
+                async with client.stream("GET", f"/sessions/{session_id}/events", params={"replay": "active"}) as res:
+                    async for chunk in res.aiter_raw():
+                        yield chunk
+        except httpx.HTTPError as exc:
+            yield f"event: relay.error\ndata: {json.dumps({'error': str(exc)})}\n\n".encode()
+
+    return StreamingResponse(relay(), media_type="text/event-stream", headers={"Cache-Control": "no-cache"})
+
+
+@app.get("/agent/sessions/{session_id}/state")
+async def agent_session_state(session_id: str):
+    """Status of the session's latest run, including the error if it failed."""
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{1,80}", session_id):
+        raise HTTPException(status_code=422, detail="invalid session id")
+    try:
+        res = await _agent_request("GET", f"/sessions/{session_id}")
+        session = res.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        return JSONResponse(status_code=502, content={"error": str(exc)})
+    attempt_id = session.get("last_attempt_id")
+    attempt = agent.attempt_state(session_id, attempt_id) if attempt_id else None
+    return {"session_status": session.get("status"), "attempt": attempt}
+
+
+@app.get("/agent/sessions/{session_id}/messages")
+async def agent_messages(session_id: str):
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{1,80}", session_id):
+        raise HTTPException(status_code=422, detail="invalid session id")
+    try:
+        res = await _agent_request("GET", f"/sessions/{session_id}/messages")
+        return JSONResponse(status_code=res.status_code, content=res.json())
+    except (httpx.HTTPError, ValueError) as exc:
+        return JSONResponse(status_code=502, content={"error": str(exc)})
+
+
+@app.post("/agent/sessions/{session_id}/cancel")
+async def agent_cancel(session_id: str):
+    if not re.fullmatch(r"[A-Za-z0-9_\-]{1,80}", session_id):
+        raise HTTPException(status_code=422, detail="invalid session id")
+    try:
+        res = await _agent_request("POST", f"/sessions/{session_id}/cancel")
+        return res.json()
+    except httpx.HTTPError as exc:
+        return JSONResponse(status_code=502, content={"error": str(exc)})
 
 
 DEFAULT_PORT = 8765

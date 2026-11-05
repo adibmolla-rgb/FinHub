@@ -59,9 +59,22 @@ def engines_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "engines"
 
 
+def engine_env(engine_id: str) -> Path:
+    """Where an engine's virtual environment lives.
+
+    In development it is ``engines/<id>/.venv``. Installed apps keep engine sources read-only inside the
+    app bundle, so they set FINHUB_ENGINE_ENVS_DIR to a writable folder in the user's app data.
+    """
+    envs = os.environ.get("FINHUB_ENGINE_ENVS_DIR")
+    return Path(envs) / engine_id if envs else engines_dir() / engine_id / ".venv"
+
+
 def engine_python(engine_id: str) -> Path:
-    venv = engines_dir() / engine_id / ".venv"
-    return venv / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+    return engine_env(engine_id) / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+
+
+# On Windows, a console program started from a window-less parent opens its own console window.
+NO_WINDOW = {"creationflags": subprocess.CREATE_NO_WINDOW} if sys.platform == "win32" else {}
 
 
 @dataclass(frozen=True)
@@ -89,7 +102,8 @@ print(json.dumps(out))
 """
 
 
-def check(spec: EngineSpec, timeout: float = 60.0) -> EngineStatus:
+def check(spec: EngineSpec, timeout: float = 900.0) -> EngineStatus:
+    # Generous timeout: OpenBB builds its command index on the very first import, which takes minutes.
     base = {k: v for k, v in asdict(spec).items() if k in {"id", "name", "role", "license", "homepage"}}
     python = engine_python(spec.id)
     if not python.exists():
@@ -100,6 +114,7 @@ def check(spec: EngineSpec, timeout: float = 60.0) -> EngineStatus:
             capture_output=True,
             text=True,
             timeout=timeout,
+            **NO_WINDOW,
         )
         result = json.loads(proc.stdout.strip().splitlines()[-1])
     except subprocess.TimeoutExpired:

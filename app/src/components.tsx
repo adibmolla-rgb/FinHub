@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { formatValue, timeAgo, type EngineStatus, type Health, type Receipt, type ReceiptExample, type SourceHealth } from './api'
+import { formatValue, timeAgo, type EngineStatus, type Health, type InstallState, type Receipt, type ReceiptExample, type SourceHealth } from './api'
 import { COMMANDS } from './commands'
 
 export function Panel(props: { code: string; title: string; active?: boolean; children: ReactNode; className?: string }) {
@@ -16,8 +16,9 @@ export function Panel(props: { code: string; title: string; active?: boolean; ch
 
 export function SystemPanel(props: {
   health: Health | null; healthError: string | null; engines: EngineStatus[] | null; enginesLoading: boolean; sources: SourceHealth[] | null
+  installs: Record<string, InstallState>; onInstall: (id: string) => void
 }) {
-  const { health, healthError, engines, enginesLoading, sources } = props
+  const { health, healthError, engines, enginesLoading, sources, installs, onInstall } = props
   return (
     <div className="stack">
       <div className="kv">
@@ -54,7 +55,9 @@ export function SystemPanel(props: {
                   </a>
                 </td>
                 <td className="muted">{e.role}</td>
-                <td>{e.available ? <span className="ok">ready {e.version}</span> : <span className="warn">{e.reason}</span>}</td>
+                <td>
+                  <EngineCell engine={e} install={installs[e.id]} onInstall={onInstall} />
+                </td>
                 <td className="muted">{e.license}</td>
               </tr>
             ))}
@@ -89,6 +92,24 @@ export function SystemPanel(props: {
           </tbody>
         </table>
       )}
+    </div>
+  )
+}
+
+function EngineCell({ engine, install, onInstall }: { engine: EngineStatus; install?: InstallState; onInstall: (id: string) => void }) {
+  if (install?.state === 'running') {
+    return (
+      <div className="install">
+        <span className="warn">installing…</span>
+        <pre className="install__log">{install.log_tail.slice(-4).join('\n')}</pre>
+      </div>
+    )
+  }
+  if (engine.available) return <span className="ok">ready {engine.version}</span>
+  return (
+    <div className="install">
+      <span className="warn">{install?.state === 'failed' ? `install failed: ${install.error}` : engine.reason}</span>
+      <button className="chip" onClick={() => onInstall(engine.id)}>{install?.state === 'failed' ? 'Retry install' : 'Install'}</button>
     </div>
   )
 }
