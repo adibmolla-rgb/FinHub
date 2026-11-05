@@ -144,3 +144,13 @@ export function runCommand(input: string): CommandResult {
   }
   return { kind: 'error', message: `Unknown command “${words[0]}”. Type HELP.` }
 }
+
+/** Commands matching what has been typed so far (by name), for the suggestion list under the bar. */
+export function suggest(input: string, limit = 6): typeof COMMANDS {
+  const word = input.trim().split(/\s+/)[0]?.toUpperCase() ?? ''
+  if (!word || input.includes(' ')) return []
+  const ready = COMMANDS.filter((c) => c.status === 'ready' && !c.name.startsWith('<'))
+  const starts = ready.filter((c) => c.name.startsWith(word))
+  const contains = ready.filter((c) => !c.name.startsWith(word) && c.description.toUpperCase().includes(word) && word.length >= 3)
+  return [...starts, ...contains].slice(0, limit)
+}

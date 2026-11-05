@@ -416,3 +416,18 @@ details summary { cursor: pointer; }
 .grid__cmpchart .chart-wrap { flex: 1; height: auto; }
 .grid__cmpstats { grid-area: cmpstats; }
 .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
+
+/* Command suggestions */
+.command { position: relative; }
+.suggest {
+  position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 20; list-style: none; margin: 0; padding: 4px;
+  background: var(--panel-head); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 24px rgb(0 0 0 / .4);
+}
+.suggest button {
+  display: grid; grid-template-columns: 90px 1fr auto; gap: 12px; align-items: baseline; width: 100%;
+  background: none; border: 0; color: inherit; text-align: left; padding: 5px 8px; border-radius: 4px; cursor: pointer; font: 12.5px var(--sans);
+}
+.suggest li:first-child button, .suggest button:hover { background: rgb(61 220 151 / .08); }
+.suggest code { color: var(--accent); font-weight: 700; }
+.suggest__eg { font: 11px var(--mono); color: var(--muted); }
+.suggest__hint { font-size: 10.5px; padding: 4px 8px 2px; }

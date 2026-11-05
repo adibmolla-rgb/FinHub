@@ -122,3 +122,24 @@ describe('market simulation', () => {
     expect(informed).toBeGreaterThan(0)
   })
 })
+
+import { runCommand, suggest } from '../commands'
+
+describe('command bar', () => {
+  it('suggests commands by prefix and stops once arguments start', () => {
+    expect(suggest('BA').map((c) => c.name)).toContain('BACKTEST')
+    expect(suggest('BACKTEST SPY')).toEqual([])
+    expect(suggest('')).toEqual([])
+  })
+
+  it('parses the main commands', () => {
+    expect(runCommand('aapl')).toMatchObject({ kind: 'ticker', symbol: 'AAPL' })
+    expect(runCommand('RISK SPY 60 TLT 40')).toMatchObject({ kind: 'risk', holdings: [{ symbol: 'SPY', weight: 60 }, { symbol: 'TLT', weight: 40 }] })
+    expect(runCommand('BACKTEST QQQ momentum 126')).toMatchObject({ kind: 'backtest', symbol: 'QQQ', strategy: 'momentum', params: [126] })
+    expect(runCommand('W -NVDA')).toMatchObject({ kind: 'watch', remove: 'NVDA' })
+    expect(runCommand('WATCH NVDA')).toMatchObject({ kind: 'watch', add: 'NVDA' })
+    expect(runCommand('CMP A')).toMatchObject({ kind: 'error' })
+    expect(runCommand('OPT msft')).toMatchObject({ kind: 'opt', symbol: 'MSFT' })
+    expect(runCommand('ASK what moved oil?')).toMatchObject({ kind: 'agent', ask: 'ask', text: 'what moved oil?' })
+  })
+})

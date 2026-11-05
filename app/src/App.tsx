@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, watchApi, BACKEND_URL, type EngineStatus, type Health, type InstallState, type Range, type Receipt, type ReceiptExample, type SourceHealth } from './api'
 import { backendPhase, inDesktopApp, type BackendPhase } from './tauri'
-import { runCommand, type PanelId } from './commands'
+import { runCommand, suggest, type PanelId } from './commands'
 import { HelpPanel, LogPanel, Panel, ReceiptDrawer, ReceiptPanel, SystemPanel, type LogEntry } from './components'
 import { ChartPanel, NewsPanel, ProfilePanel, QuoteStrip } from './Ticker'
 import { useTicker } from './useTicker'
@@ -267,8 +267,19 @@ export default function App() {
     setLog((l) => (result.kind === 'clear' ? [] : [entry, ...l].slice(0, 200)))
   }
 
+  const suggestions = suggest(command)
+  const [focused, setFocused] = useState(false)
+
+  function complete(name: string) {
+    setCommand(`${name} `)
+    inputRef.current?.focus()
+  }
+
   function onCommandKey(e: React.KeyboardEvent<HTMLInputElement>) {
-    if (e.key === 'Enter') submit()
+    if (e.key === 'Tab' && suggestions.length) {
+      e.preventDefault()
+      complete(suggestions[0].name)
+    } else if (e.key === 'Enter') submit()
     else if (e.key === 'Escape') inputRef.current?.blur()
     else if (e.key === 'ArrowUp' && history.length) {
       e.preventDefault()
@@ -300,12 +311,28 @@ export default function App() {
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={onCommandKey}
+            onFocus={() => setFocused(true)}
+            onBlur={() => setTimeout(() => setFocused(false), 150)}
             placeholder="Ticker or command — AAPL, BACKTEST, RISK, OPT, SIM, ASK …, AI, HELP   (Ctrl+K)"
             spellCheck={false}
             autoComplete="off"
             autoFocus
             aria-label="Command"
           />
+          {focused && suggestions.length > 0 && (
+            <ul className="suggest" role="listbox">
+              {suggestions.map((c, i) => (
+                <li key={c.name} role="option" aria-selected={i === 0}>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => complete(c.name)}>
+                    <code>{c.name}</code>
+                    <span className="muted">{c.description}</span>
+                    <span className="suggest__eg">{c.usage}</span>
+                  </button>
+                </li>
+              ))}
+              <li className="suggest__hint muted">Tab completes the first suggestion</li>
+            </ul>
+          )}
         </label>
         <div className="clock" title="Local time · UTC">
           {now.toLocaleTimeString([], { hour12: false })}
