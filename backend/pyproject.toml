@@ -10,6 +10,7 @@ dependencies = [
     "uvicorn[standard]>=0.30",
     "pydantic>=2.8",
     "httpx>=0.27",
+    "numpy>=2.0",
 ]
 
 # Engines (OpenBB, Vibe-Trading, ...) are NOT dependencies of the backend. Each lives in its own

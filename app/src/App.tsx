@@ -8,6 +8,7 @@ import { useTicker } from './useTicker'
 import { AgentSettingsPanel, AgentWorkspace } from './Agent'
 import { SimWorkspace } from './sim/Sim'
 import { OptionsWorkspace } from './quant/Options'
+import { BacktestWorkspace, type BacktestPreset } from './quant/Backtest'
 import type { AskKind } from './api'
 
 function useClock() {
@@ -26,6 +27,7 @@ type Workspace =
   | { kind: 'ai' }
   | { kind: 'sim' }
   | { kind: 'opt'; symbol?: string; nonce: number }
+  | { kind: 'backtest'; preset: BacktestPreset; nonce: number }
 
 function TickerWorkspace({ symbol, range, onRange, onReceipt, log }: {
   symbol: string; range: Range; onRange: (r: Range) => void; onReceipt: (r: Receipt) => void; log: LogEntry[]
@@ -193,6 +195,9 @@ export default function App() {
       case 'sim':
         setWorkspace({ kind: 'sim' })
         break
+      case 'backtest':
+        setWorkspace({ kind: 'backtest', preset: { symbol: result.symbol, strategy: result.strategy, params: result.params }, nonce: Date.now() })
+        break
       case 'opt':
         setWorkspace({ kind: 'opt', symbol: result.symbol, nonce: Date.now() })
         break
@@ -239,7 +244,7 @@ export default function App() {
             value={command}
             onChange={(e) => setCommand(e.target.value)}
             onKeyDown={onCommandKey}
-            placeholder="Ticker or command — AAPL, ASK …, BT …, OPT, SIM, AI, HELP   (Ctrl+K)"
+            placeholder="Ticker or command — AAPL, BACKTEST, OPT, SIM, ASK …, AI, HELP   (Ctrl+K)"
             spellCheck={false}
             autoComplete="off"
             autoFocus
@@ -271,6 +276,8 @@ export default function App() {
           text={workspace.text}
           onOpenSettings={() => setWorkspace({ kind: 'ai' })}
         />
+      ) : workspace.kind === 'backtest' ? (
+        <BacktestWorkspace key={workspace.nonce} preset={workspace.preset} />
       ) : workspace.kind === 'opt' ? (
         <OptionsWorkspace key={workspace.nonce} symbol={workspace.symbol} />
       ) : workspace.kind === 'sim' ? (

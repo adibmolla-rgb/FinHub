@@ -106,3 +106,41 @@ def test_endpoint_returns_502_with_attempts_and_records_health(fake_worker):
 def test_bad_symbols_are_rejected():
     client = TestClient(app)
     assert client.get("/market/quote/rm%20-rf").status_code == 422
+
+
+BARS_WORKER = textwrap.dedent(
+    """
+    import json, sys, math
+    for line in sys.stdin:
+        req = json.loads(line)
+        if req["method"] == "history":
+            # Synthetic test series: a sine wave around 100 with a slow upward drift.
+            bars = [{"time": f"2015-01-01+{i}", "open": 0, "high": 0, "low": 0,
+                     "close": 100 * (1 + 0.0003 * i) * (1 + 0.05 * math.sin(i / 15)), "volume": 0} for i in range(1600)]
+            print(json.dumps({"id": req["id"], "ok": True, "result": {
+                "provider": "test", "provider_name": "SYNTHETIC", "fetched_at": "2026-11-05T00:00:00+00:00",
+                "attempts": [{"provider": "test", "ok": True, "error": None, "ms": 1}],
+                "data": {"symbol": "TEST", "interval": "1d", "adjusted": req["params"].get("adjusted", False), "bars": bars}}}), flush=True)
+    """
+)
+
+
+def test_backtest_endpoint_requests_adjusted_prices_and_reports_provenance(tmp_path):
+    from pathlib import Path
+
+    script = tmp_path / "worker.py"
+    script.write_text(BARS_WORKER)
+    w = EngineWorker(Path(sys.executable), script)
+    market.set_worker(w)
+    try:
+        res = TestClient(app).post("/backtest", json={"symbol": "TEST", "strategy": "sma", "params": {"fast": 10, "slow": 50}})
+        assert res.status_code == 200, res.text
+        body = res.json()
+        assert body["data"]["adjusted"] is True and body["data"]["provider"] == "SYNTHETIC"
+        assert body["causality_check"] is True
+        assert body["walk_forward"]["available"] is True
+        assert set(body["metrics"]) == {"strategy", "strategy_before_costs", "buy_hold"}
+        assert len(body["curve"]) > 100
+    finally:
+        w.stop()
+        market.set_worker(None)

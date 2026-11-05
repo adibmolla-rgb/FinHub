@@ -209,7 +209,10 @@ async function send<T>(path: string, method: 'POST' | 'PUT', body: unknown, time
       body: JSON.stringify(body),
     })
     const data = await res.json().catch(() => ({}))
-    if (!res.ok) throw new ApiError(data.error ?? data.detail ?? `HTTP ${res.status}`, res.status)
+    if (!res.ok) {
+      const detail = typeof data.detail === 'string' ? data.detail : data.detail ? JSON.stringify(data.detail) : undefined
+      throw new ApiError(data.error ?? detail ?? `HTTP ${res.status}`, res.status, data.attempts ?? [])
+    }
     return data as T
   } catch (err) {
     if (err instanceof DOMException && err.name === 'AbortError') throw new ApiError(`timed out after ${timeoutMs / 1000}s`, 0)
@@ -229,4 +232,47 @@ export const agentApi = {
   state: (id: string) => get<{ session_status: string; attempt: { status: string; error: string | null } | null }>(`/agent/sessions/${enc(id)}/state`, 15_000),
   cancel: (id: string) => send<unknown>(`/agent/sessions/${enc(id)}/cancel`, 'POST', {}, 15_000),
   eventsUrl: (id: string) => `${BACKEND_URL}/agent/sessions/${enc(id)}/events`,
+}
+
+// ---------------------------------------------------------------------------------------------
+// Backtester
+// ---------------------------------------------------------------------------------------------
+
+export type StrategyInfo = { name: string; label: string; params: string[]; defaults: Record<string, number>; grid: Record<string, number[]> }
+
+export type Metrics = {
+  total_return: number; cagr: number; volatility: number; sharpe: number; sortino: number
+  max_drawdown: number; calmar: number; days: number; years: number
+  exposure?: number; trades?: number; turnover_per_year?: number
+}
+
+export type BacktestResult = {
+  symbol: string
+  strategy: string
+  label: string
+  params: Record<string, number>
+  allow_short: boolean
+  costs: { commission_bps: number; slippage_bps: number }
+  fills: string
+  period: { start: string; end: string; days: number }
+  metrics: { strategy: Metrics; strategy_before_costs: Metrics; buy_hold: Metrics }
+  causality_check: boolean
+  walk_forward:
+    | { available: false; reason: string; trials: number }
+    | { available: true; trials: number; oos_start: string; out_of_sample: Metrics
+        folds: { fold: number; params: Record<string, number>; in_sample_sharpe: number; out_of_sample_sharpe: number }[] }
+  deflated_sharpe: { dsr: number; trials: number; sr0_annual: number; skew?: number; kurtosis?: number }
+  warnings: string[]
+  curve: { time: string; strategy: number; buy_hold: number; drawdown: number }[]
+  data: { provider: string; fetched_at: string; adjusted: boolean; attempts: Attempt[]; bars: number }
+}
+
+export type BacktestRequest = {
+  symbol: string; strategy: string; params: Record<string, number>; range: '1Y' | '5Y' | 'MAX'
+  cost_bps: number; slippage_bps: number; allow_short: boolean
+}
+
+export const backtestApi = {
+  strategies: () => get<StrategyInfo[]>('/backtest/strategies'),
+  run: (req: BacktestRequest) => send<BacktestResult>('/backtest', 'POST', req, 180_000),
 }

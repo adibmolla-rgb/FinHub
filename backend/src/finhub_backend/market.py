@@ -201,8 +201,8 @@ def quote(symbol: str) -> dict:
     return build_quote(_fetch("quote", {"symbol": symbol}))
 
 
-def history(symbol: str, range_: str = "1Y") -> dict:
-    result = _fetch("history", {"symbol": symbol, "range": range_, "interval": "1d"})
+def history(symbol: str, range_: str = "1Y", adjusted: bool = False) -> dict:
+    result = _fetch("history", {"symbol": symbol, "range": range_, "interval": "1d", "adjusted": adjusted})
     data = result["data"]
     return {
         "symbol": data["symbol"],

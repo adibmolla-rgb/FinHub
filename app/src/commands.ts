@@ -13,6 +13,7 @@ export type CommandResult =
   | { kind: 'ai'; message: string }
   | { kind: 'sim'; message: string }
   | { kind: 'opt'; symbol?: string; message: string }
+  | { kind: 'backtest'; symbol?: string; strategy?: string; params?: number[]; message: string }
   | { kind: 'clear'; message: string }
   | { kind: 'refresh'; message: string }
   | { kind: 'error'; message: string }
@@ -31,12 +32,13 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'BT', usage: 'BT SPY 20/50 day moving-average crossover', description: 'Agent backtest with costs, buy-and-hold comparison and validation warnings', status: 'ready' },
   { name: 'DEBATE', usage: 'DEBATE TSLA', description: 'Bull case, bear case and a neutral judge', status: 'ready' },
   { name: 'AI', usage: 'AI', description: 'Choose the AI provider (Claude, OpenAI or local Ollama) and key', status: 'ready' },
+  { name: 'BACKTEST', usage: 'BACKTEST SPY sma 20 50', description: 'FinHub backtester: costs, next-bar fills, walk-forward, deflated Sharpe (also momentum 126, meanrev 20 2)', status: 'ready' },
   { name: 'OPT', usage: 'OPT AAPL', description: 'Options lab: price three ways, Greeks, implied vol, strategy payoffs', status: 'ready' },
   { name: 'SIM', usage: 'SIM', description: 'Simulated exchange: trade against bots, trigger news and crashes', status: 'ready' },
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'RCPT', 'LOG']
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -69,6 +71,14 @@ export function runCommand(input: string): CommandResult {
   }
 
   if (word === 'SIM') return { kind: 'sim', message: 'Market simulator' }
+  if (word === 'BACKTEST') {
+    const sym = words[1]?.toUpperCase()
+    if (sym && !SYMBOL.test(sym)) return { kind: 'error', message: 'Usage: BACKTEST SPY sma 20 50' }
+    const strategy = words[2]?.toLowerCase()
+    if (strategy && !['sma', 'momentum', 'meanrev'].includes(strategy)) return { kind: 'error', message: 'Strategies: sma, momentum, meanrev' }
+    const params = words.slice(3).map(Number)
+    return { kind: 'backtest', symbol: sym, strategy, params, message: sym ? `Backtest ${sym}` : 'Backtester' }
+  }
   if (word === 'OPT') {
     const sym = words[1]?.toUpperCase()
     if (sym && !SYMBOL.test(sym)) return { kind: 'error', message: 'OPT takes an optional ticker, e.g. OPT AAPL' }

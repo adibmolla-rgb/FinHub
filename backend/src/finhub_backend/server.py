@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from finhub_backend import __version__, agent, engines, installer, market
+from finhub_backend import __version__, agent, backtest, engines, installer, market
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -157,6 +157,57 @@ def market_news(symbol: str, limit: int = Query(20, ge=1, le=50)):
 @app.get("/market/sources")
 def market_sources() -> list[dict]:
     return market.source_health()
+
+
+# --------------------------------------------------------------------------------------------------
+# Backtester
+# --------------------------------------------------------------------------------------------------
+
+
+class BacktestRequest(BaseModel):
+    symbol: str = Field(pattern=r"^[A-Za-z0-9.\-^=]{1,15}$")
+    strategy: str = "sma"
+    params: dict[str, float] = Field(default_factory=dict)
+    range: str = Field("5Y", pattern="^(1Y|5Y|MAX)$")
+    cost_bps: float = Field(5.0, ge=0, le=500)
+    slippage_bps: float = Field(5.0, ge=0, le=500)
+    allow_short: bool = False
+
+
+@app.get("/backtest/strategies")
+def backtest_strategies() -> list[dict]:
+    return backtest.describe()
+
+
+@app.post("/backtest")
+def run_backtest_endpoint(req: BacktestRequest):
+    try:
+        hist = market.history(req.symbol.upper(), req.range, adjusted=True)
+    except market.MarketDataError as exc:
+        return JSONResponse(status_code=502, content={"error": str(exc), "attempts": exc.attempts})
+    bars = hist["bars"]
+    try:
+        result = backtest.run_backtest(
+            [str(b["time"]) for b in bars],
+            [b["close"] for b in bars],
+            req.strategy,
+            req.params,
+            req.cost_bps,
+            req.slippage_bps,
+            req.allow_short,
+            adjusted=bool(hist["adjusted"]),
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    result["symbol"] = hist["symbol"]
+    result["data"] = {
+        "provider": hist["provider_name"],
+        "fetched_at": hist["fetched_at"],
+        "adjusted": hist["adjusted"],
+        "attempts": hist["attempts"],
+        "bars": len(bars),
+    }
+    return result
 
 
 # --------------------------------------------------------------------------------------------------

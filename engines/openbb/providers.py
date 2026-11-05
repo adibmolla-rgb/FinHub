@@ -188,8 +188,10 @@ def yahoo_quote(symbol: str) -> dict:
     }
 
 
-def yahoo_history(symbol: str, range: str = "1Y", interval: str = "1d") -> dict:
-    df = _yf().Ticker(symbol).history(start=start_date(range).isoformat(), interval=interval, auto_adjust=False)
+def yahoo_history(symbol: str, range: str = "1Y", interval: str = "1d", adjusted: bool = False) -> dict:
+    # adjusted=True: prices adjusted for splits and dividends (needed for backtests: an unadjusted
+    # 4-for-1 split looks like a 75% crash). Charts show unadjusted prices, as traded.
+    df = _yf().Ticker(symbol).history(start=start_date(range).isoformat(), interval=interval, auto_adjust=adjusted)
     if df is None or df.empty:
         raise NoData(f"no history for {symbol}")
     bars = []
@@ -201,7 +203,7 @@ def yahoo_history(symbol: str, range: str = "1Y", interval: str = "1d") -> dict:
                      "open": o, "high": h, "low": l, "close": c, "volume": _num(row.get("Volume")) or 0})
     if not bars:
         raise NoData(f"no usable bars for {symbol}")
-    return {"symbol": symbol.upper(), "interval": interval, "adjusted": False, "bars": bars}
+    return {"symbol": symbol.upper(), "interval": interval, "adjusted": adjusted, "bars": bars}
 
 
 def yahoo_profile(symbol: str) -> dict:
@@ -311,7 +313,8 @@ def openbb_quote(provider: str) -> Callable[..., dict]:
 
 
 def openbb_history(provider: str) -> Callable[..., dict]:
-    def fetch(symbol: str, range: str = "1Y", interval: str = "1d") -> dict:
+    def fetch(symbol: str, range: str = "1Y", interval: str = "1d", adjusted: bool = False) -> dict:
+        # These providers return prices as traded; adjusted is reported False so callers can warn.
         rows = _rows(obb().equity.price.historical(symbol=symbol, start_date=start_date(range), interval=interval, provider=provider))
         bars = []
         for r in rows:
