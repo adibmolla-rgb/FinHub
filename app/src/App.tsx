@@ -15,6 +15,8 @@ import { ArenaWorkspace } from './sim/Arena'
 import { MacroWorkspace } from './Macro'
 import { AlertsWorkspace } from './Alerts'
 import { ScreenerWorkspace } from './Screener'
+import { DemoHome } from './DemoHome'
+import { DEMO_COMMANDS, WEB_DEMO } from './demo'
 import { notify } from './notify'
 import { alertsApi, type AlertEvent } from './api'
 import { SimWorkspace } from './sim/Sim'
@@ -92,6 +94,12 @@ export default function App() {
   const [watchVersion, setWatchVersion] = useState(0)
   const [alertsVersion, setAlertsVersion] = useState(0)
   const [toast, setToast] = useState<AlertEvent | null>(null)
+  const [flash, setFlash] = useState<string | null>(null)
+  useEffect(() => {
+    if (!flash) return
+    const t = setTimeout(() => setFlash(null), 7000)
+    return () => clearTimeout(t)
+  }, [flash])
   const seenEvents = useRef<Set<string> | null>(null)
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
@@ -132,6 +140,7 @@ export default function App() {
 
   // Poll the backend; load engine status and examples once it comes online.
   useEffect(() => {
+    if (WEB_DEMO) return // no backend in the web demo
     checkHealth()
     const t = setInterval(checkHealth, 5000)
     return () => clearInterval(t)
@@ -228,6 +237,10 @@ export default function App() {
     const input = (text ?? command).trim()
     if (!input) return
     let result = runCommand(input)
+    if (WEB_DEMO && !DEMO_COMMANDS.has(result.kind)) {
+      result = { kind: 'error', message: `${input.split(/\s+/)[0].toUpperCase()} needs the desktop app (live data and the local engine). The web demo runs OPT and SIM.` }
+    }
+    if (WEB_DEMO && result.kind === 'opt') result = { ...result, symbol: undefined } // no live quotes in the demo
     setHistory((h) => [input, ...h].slice(0, 100))
     setHistoryIndex(null)
     setCommand('')
@@ -314,6 +327,8 @@ export default function App() {
         setRefreshKey((k) => k + 1)
         break
     }
+    // Not every workspace has an activity log, so command errors also show briefly as a banner.
+    setFlash(result.kind === 'error' ? result.message : null)
     const entry: LogEntry = { at: new Date(), input, message: result.message, ok: result.kind !== 'error' }
     setLog((l) => (result.kind === 'clear' ? [] : [entry, ...l].slice(0, 200)))
   }
@@ -352,7 +367,7 @@ export default function App() {
     <div className="shell">
       <header className="topbar">
         <div className="brand">
-          <img src="/finhub.svg" alt="" width={20} height={20} />
+          <img src={`${import.meta.env.BASE_URL}finhub.svg`} alt="" width={20} height={20} />
           <span>FinHub</span>
         </div>
         <label className="command">
@@ -364,7 +379,7 @@ export default function App() {
             onKeyDown={onCommandKey}
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
-            placeholder="Ticker or command — AAPL, BACKTEST, RISK, OPT, SIM, ASK …, AI, HELP   (Ctrl+K)"
+            placeholder={WEB_DEMO ? 'Try OPT or SIM   (Ctrl+K)' : 'Ticker or command — AAPL, BACKTEST, RISK, OPT, SIM, ASK …, AI, HELP   (Ctrl+K)'}
             spellCheck={false}
             autoComplete="off"
             autoFocus
@@ -401,6 +416,11 @@ export default function App() {
         <div className="banner" role="status">
           <strong>Installing the market-data engine (OpenBB).</strong> This happens once and takes a few minutes; market
           data works as soon as it finishes. Progress is in SYS.
+        </div>
+      )}
+      {flash && (
+        <div className="banner banner--bad banner--flash" role="status" onClick={() => setFlash(null)}>
+          {flash}
         </div>
       )}
       {toast && (
@@ -465,6 +485,8 @@ export default function App() {
           onReceipt={setReceipt}
           log={log}
         />
+      ) : WEB_DEMO ? (
+        <DemoHome onRun={(cmd) => submit(cmd)} />
       ) : (
         <main className="grid">
           <Panel code="SYS" title="System status" active={active === 'SYS'} className="grid__sys">
@@ -493,13 +515,17 @@ export default function App() {
       <ReceiptDrawer receipt={receipt} onClose={closeReceipt} />
 
       <footer className="statusbar">
-        <span className={online ? 'ok' : 'bad'}>● {online ? 'backend online' : 'backend offline'}</span>
-        <span className="muted">engines {engines ? `${ready}/${engines.length} ready` : '—'}</span>
-        <span className={failing ? 'warn' : 'muted'}>
+        {WEB_DEMO ? (
+          <span className="ok">● web demo · runs in your browser</span>
+        ) : (
+          <span className={online ? 'ok' : 'bad'}>● {online ? 'backend online' : 'backend offline'}</span>
+        )}
+        {!WEB_DEMO && <span className="muted">engines {engines ? `${ready}/${engines.length} ready` : '—'}</span>}
+        {!WEB_DEMO && <span className={failing ? 'warn' : 'muted'}>
           data sources {sources?.length ? `${sources.length - failing}/${sources.length} ok` : '—'}
-        </span>
+        </span>}
         {workspace.kind === 'ticker' && <span className="muted">{workspace.symbol} · {workspace.range}</span>}
-        <span className="muted statusbar__right">{BACKEND_URL} · FinHub v0.4.0</span>
+        <span className="muted statusbar__right">{WEB_DEMO ? '' : `${BACKEND_URL} · `}FinHub v0.4.0</span>
       </footer>
     </div>
   )

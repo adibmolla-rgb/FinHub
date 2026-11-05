@@ -62,6 +62,13 @@ FinHub keeps its data in your user profile (`%LOCALAPPDATA%\app.finhub.terminal`
 `~/Library/Application Support/app.finhub.terminal` on macOS, `~/.local/share/app.finhub.terminal` on
 Linux), including `logs/` if something goes wrong.
 
+### Web demo
+
+The options lab (`OPT`) and the market simulator (`SIM`) also run as a static website with no
+backend: `pnpm build:web` in `app/` builds it into `app/dist-web`, and every CI run uploads it as the
+`finhub-web-demo` artifact. To publish it on GitHub Pages: Settings → Pages → Source: **GitHub
+Actions**, then run the **Publish web demo** workflow from the Actions tab.
+
 ## Why FinHub
 
 Open-source terminals tend to fail in the same ways: they won't install, they need an account, their
@@ -161,8 +168,7 @@ Done: foundation, market data with receipts, AI agent with trace and history, ma
 backtester, portfolio risk, options lab, fundamentals, macro, screener, alerts, compare, chart indicators, watchlist,
 MCP server, agent arena, self-installing installers.
 
-Next: more macro sources (IMF, ECB, Fed), dockable layouts, code signing and
-auto-update, a web demo, and a C++/WebAssembly matching engine.
+Next: more macro sources (IMF, ECB, Fed), drag-and-drop panel layouts (panels can already be maximised), code signing and auto-update, and a C++/WebAssembly matching engine.
 
 ## Licence
 
