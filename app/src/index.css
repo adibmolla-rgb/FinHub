@@ -290,3 +290,40 @@ code { font-family: var(--mono); font-size: 12px; }
 @media (max-width: 1000px) {
   .grid--sim { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'head' 'chart' 'you' 'depth' 'board' 'tape'; }
 }
+
+/* ---------- Options lab ---------- */
+.grid--opt {
+  grid-template-columns: minmax(260px, .9fr) 1fr 1fr;
+  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: 'optin optpx optgrk' 'optstrat optstrat optstrat';
+}
+.grid__optin { grid-area: optin; }
+.grid__optpx { grid-area: optpx; }
+.grid__optgrk { grid-area: optgrk; }
+.grid__optstrat { grid-area: optstrat; }
+.numgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 12px; }
+.numfield { display: flex; flex-direction: column; gap: 2px; position: relative; }
+.numfield span { font-size: 11px; color: var(--muted); }
+.numfield input, .cell, .strat select {
+  background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 4px;
+  padding: 5px 7px; font: 13px var(--mono); width: 100%;
+}
+.numfield input:focus, .cell:focus { outline: none; border-color: var(--accent); }
+.numfield em { position: absolute; right: 8px; bottom: 6px; font-style: normal; color: var(--muted); font-size: 12px; }
+.cell { width: 90px; }
+.num { font-family: var(--mono); text-align: right; white-space: nowrap; }
+.inline { display: inline-flex; gap: 6px; align-items: center; }
+.ivbox { display: flex; gap: 14px; align-items: flex-end; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ivbox .numfield { width: 140px; }
+.strat { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 8px 20px; align-items: start; }
+.strat__add { align-self: flex-start; }
+.xychart svg { width: 100%; height: auto; display: block; }
+.xychart__grid { stroke: #1a212b; }
+.xychart__zero { stroke: #3a4452; stroke-width: 1; }
+.xychart__tick { fill: #7d8794; font: 10.5px var(--mono); }
+.xychart__legend { display: flex; gap: 14px; font-size: 11px; color: var(--muted); margin-top: 4px; flex-wrap: wrap; }
+.xychart__legend i { display: inline-block; width: 10px; height: 3px; margin-right: 5px; vertical-align: middle; }
+@media (max-width: 1100px) {
+  .grid--opt { grid-template-columns: 1fr; grid-template-areas: 'optin' 'optpx' 'optgrk' 'optstrat'; }
+  .strat { grid-template-columns: 1fr; }
+}
