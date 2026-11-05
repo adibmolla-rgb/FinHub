@@ -60,7 +60,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'LOG'] // WATCH is handled by the W command (it takes arguments)
 const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', 'ARENA', 'MACRO', 'ALERT', 'ALERTS', 'SCREEN', ...PANELS, ...COMMANDS.map((c) => c.name)])
-const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
+const SYMBOL = /^\^?[A-Z0-9][A-Z0-9.\-^=]{0,14}$/ // a leading ^ marks an index, e.g. ^GSPC
 
 function asRange(word: string | undefined): Range | undefined {
   const w = word?.toUpperCase()

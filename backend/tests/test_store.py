@@ -41,3 +41,12 @@ def test_notes_list_and_detail_rebuild_the_trace(tmp_path, monkeypatch):
     assert detail["steps"] == [{"id": "c1", "tool": "get_prices", "args": {"symbol": "SPY"}, "status": "ok", "preview": "1258 rows"}]
     assert client.get("/notes/..%2Fx").status_code in (404, 422)
     assert client.get("/notes/nope").status_code == 404
+
+
+def test_watchlist_accepts_index_tickers(tmp_path, monkeypatch):
+    monkeypatch.setenv("FINHUB_DATA_DIR", str(tmp_path))
+    assert store.set_watchlist(["^gspc", "^VIX", "BRK-B", "EURUSD=X"]) == ["^GSPC", "^VIX", "BRK-B", "EURUSD=X"]
+    import pytest
+
+    with pytest.raises(ValueError):
+        store.set_watchlist(["^"])

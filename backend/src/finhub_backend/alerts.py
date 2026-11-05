@@ -23,7 +23,7 @@ KINDS = {
     "move_up": "day's change reaches or exceeds +",
     "move_down": "day's change reaches or falls below −",
 }
-SYMBOL = re.compile(r"^[A-Z0-9][A-Z0-9.\-^=]{0,14}$")
+SYMBOL = re.compile(r"^\^?[A-Z0-9][A-Z0-9.\-^=]{0,14}$")  # a leading ^ marks an index, e.g. ^GSPC
 MAX_ALERTS = 100
 CHECK_EVERY_SECONDS = 120
 

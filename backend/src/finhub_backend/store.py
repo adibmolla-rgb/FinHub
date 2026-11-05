@@ -14,7 +14,7 @@ from pathlib import Path
 
 from finhub_backend.agent import data_dir
 
-SYMBOL = re.compile(r"^[A-Z0-9][A-Z0-9.\-^=]{0,14}$")
+SYMBOL = re.compile(r"^\^?[A-Z0-9][A-Z0-9.\-^=]{0,14}$")  # a leading ^ marks an index, e.g. ^GSPC
 MAX_WATCHLIST = 50
 DEFAULT_WATCHLIST = ["SPY", "QQQ", "AAPL", "MSFT", "NVDA", "TLT", "GLD"]
 

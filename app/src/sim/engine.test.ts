@@ -155,3 +155,11 @@ describe('ALERT parsing', () => {
     expect(runCommand('ALERTS')).toMatchObject({ kind: 'alerts' })
   })
 })
+
+describe('index tickers', () => {
+  it('accepts a leading ^ (e.g. ^GSPC) but not ^ alone', () => {
+    expect(runCommand('^gspc')).toMatchObject({ kind: 'ticker', symbol: '^GSPC' })
+    expect(runCommand('W ^VIX')).toMatchObject({ kind: 'watch', add: '^VIX' })
+    expect(runCommand('^')).toMatchObject({ kind: 'error' })
+  })
+})

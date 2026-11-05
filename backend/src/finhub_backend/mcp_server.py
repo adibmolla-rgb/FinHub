@@ -27,8 +27,9 @@ server = MCPServer(
     instructions=(
         "FinHub is a market research terminal. Use finhub_quote and finhub_history for prices, "
         "finhub_backtest to test a trading rule with costs, next-bar fills, walk-forward and a deflated "
-        "Sharpe ratio, finhub_portfolio_risk for VaR/ES and correlations, and finhub_price_option for "
-        "option values and Greeks. Results include where each number came from and warnings; report "
+        "Sharpe ratio, finhub_portfolio_risk for VaR/ES and correlations, finhub_price_option for "
+        "option values and Greeks, finhub_fundamentals for statements and ratios, finhub_macro for OECD "
+        "macro series, and finhub_screen to filter a universe of stocks. Fractions are fractions: 0.05 = 5%. Results include where each number came from and warnings; report "
         "those warnings to the user rather than hiding them. The finhub_arena_* tools trade in a SIMULATED "
         "market with bots (no real money) for practice and experiments. This is research, not financial advice."
     ),
@@ -173,6 +174,63 @@ def finhub_price_option(
     if market_price is not None:
         out["implied_volatility"] = options.implied_vol(market_price, *args)
     return out
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_fundamentals(symbol: str, period: Literal["annual", "quarter"] = "annual") -> dict:
+    """Income statement, balance sheet and cash flow (up to 8 periods) plus key ratios (margins,
+    revenue growth, ROE, ROA, debt/equity, free cash flow). Ratios are computed by FinHub only when
+    every input exists; each ratio's receipt names the provider field and period it used."""
+    return _call("GET", f"/market/fundamentals/{symbol.upper()}", params={"period": period})
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_macro(country: str = "US") -> dict:
+    """OECD macro series for a country (code like US, GB, JP, DE or a name like united_kingdom): CPI
+    inflation, unemployment, short and long interest rates, real GDP. unit_kind 'fraction' means
+    0.042 = 4.2%; 'as_reported' means the provider did not declare a unit: quote it verbatim with
+    the given unit text, never convert it."""
+    return _call("GET", f"/macro/{country}")
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_screen(
+    universe: Literal["large_caps", "watchlist", "custom"] = "large_caps",
+    symbols: list[str] | None = None,
+    min_price: float | None = None,
+    max_price: float | None = None,
+    min_change: float | None = None,
+    max_change: float | None = None,
+    min_market_cap: float | None = None,
+    max_from_high: float | None = None,
+    min_from_low: float | None = None,
+    sectors: list[str] | None = None,
+) -> dict:
+    """Screen ~60 large caps across all 11 GICS sectors, the watchlist, or custom tickers (1-100).
+    Changes and distances are FRACTIONS: min_change=0.02 means up at least 2% today; max_from_high=0.05
+    means within 5% of the 52-week high; min_from_low=0.2 means at least 20% above the 52-week low.
+    min_market_cap is in currency units (1e11 = 100bn). Tickers lacking data for a set filter are
+    excluded; tickers with no quote are listed under 'failed'."""
+    body = {k: v for k, v in locals().items() if v is not None}
+    body.setdefault("sectors", [])
+    res = _call("POST", "/screen", json=body)
+    for row in res.get("matches", []):
+        row.pop("receipts", None)
+    return res
+
+
+@server.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, openWorldHint=False))
+def finhub_add_alert(symbol: str, kind: Literal["above", "below", "move_up", "move_down"], threshold: float) -> dict:
+    """Create a one-shot price alert in the user's FinHub app (they get a desktop notification when
+    it fires). above/below take a price; move_up/move_down take the day's move as a FRACTION
+    (0.05 = 5%). Only create alerts the user asked for."""
+    return _call("POST", "/alerts", json={"symbol": symbol, "kind": kind, "threshold": threshold})
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_alerts() -> dict:
+    """The user's FinHub price alerts (active and triggered) and recent alert events."""
+    return _call("GET", "/alerts")
 
 
 @server.tool(annotations=READ_ONLY)

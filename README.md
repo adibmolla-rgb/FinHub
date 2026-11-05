@@ -1,12 +1,55 @@
 # FinHub
 
-An open-source market research terminal for your desktop. One keyboard-driven app for market data,
-fundamentals, a backtester, portfolio risk, an options lab, an AI research agent and a simulated
-exchange where you and AI agents trade against bots, and it shows where every number comes from.
+**An open-source market research terminal for your desktop.** One keyboard-driven app for market
+data, fundamentals, macro data, a stock screener, a backtester, portfolio risk, an options lab, price
+alerts, an AI research agent, and a simulated exchange where you and AI agents trade against bots.
+Every number can show you where it came from.
 
-> **v0.4.** Everything below works today. Installers for Windows, macOS and Linux set themselves up.
+Free, open source (Apache 2.0), no account. Windows, macOS and Linux.
 
 ![Agent arena](docs/screenshot-arena.png)
+
+## Quick links
+
+| I want to… | Read |
+|---|---|
+| Install it | [docs/INSTALL.md](docs/INSTALL.md) |
+| Learn every command, with walkthroughs | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) |
+| Use FinHub from Claude Desktop, Claude Code or another AI assistant | [docs/AI_ASSISTANTS.md](docs/AI_ASSISTANTS.md) |
+| Work on the code (people or Claude Code) | [CLAUDE.md](CLAUDE.md) |
+| See what changed | [CHANGELOG.md](CHANGELOG.md) |
+
+## What FinHub is
+
+- **A research workstation.** Look things up, test ideas and measure risk, all from one command bar.
+- **Honest about its numbers.** Click any number to see its *receipt*: which data provider it came
+  from, the provider's own field name, the reporting period, when it was fetched, and for computed
+  values the formula and inputs. Values in different units (percent vs fraction) cannot be mixed
+  without an explicit conversion.
+- **Hard to fool yourself with.** The backtester trades on the *next* bar, charges costs at every
+  fill, checks itself for look-ahead bias, runs walk-forward tests, reports a deflated Sharpe ratio
+  for the number of parameter combinations tried, and warns when a result looks too good. Optimal
+  portfolio weights come with error bars.
+- **Open to AI.** It has its own AI research agent with a visible step-by-step trace, and it is an
+  [MCP](https://modelcontextprotocol.io) server, so Claude and other assistants can use its tools.
+- **Self-installing.** The installer needs nothing else; on first launch it sets up its own private
+  Python and data engine.
+
+## What FinHub is not
+
+- **Not a broker.** It cannot place real orders or touch real money. The only trading is in the
+  built-in simulators (`SIM`, `ARENA`).
+- **Not financial advice.** Analytics and AI answers are research tools; check them.
+- **Not a Bloomberg replacement.** Data comes from free public providers (Yahoo Finance, Cboe, Nasdaq,
+  TMX, SEC filings, OECD). Quotes can be delayed, coverage outside US large caps is thinner, and
+  providers change or break without notice. FinHub falls back to the next provider and tells you when
+  it does.
+- **Not a full-market screener.** No free source offers one, so `SCREEN` covers a built-in list of
+  ~60 large caps, your watchlist, or tickers you type.
+- **Not code-signed yet.** Windows and macOS show a warning the first time you open it
+  ([how to get past it](docs/INSTALL.md#the-security-warning)).
+- **Not a hosted website.** It runs on your computer. A small web demo (options lab and simulator
+  only) can be built and published separately.
 
 ## What it does
 
@@ -15,161 +58,72 @@ exchange where you and AI agents trade against bots, and it shows where every nu
 | `AAPL` | Quote, candlestick chart (SMA, EMA, Bollinger, RSI), company profile and news |
 | `FA AAPL` | Income statement, balance sheet, cash flow and key ratios |
 | `MACRO GB` | OECD inflation, unemployment, interest rates and real GDP for a country |
-| `SCREEN` | Screen ~60 large caps, your watchlist or any tickers by price, day move, market cap and 52-week range |
-| `ALERT AAPL > 200` · `ALERT NVDA -5%` | Price and day-move alerts with desktop notifications (`ALERTS` lists them) |
-| `CMP AAPL MSFT NVDA` | Performance, volatility, Sharpe, drawdown and correlation of up to 8 tickers |
-| `BACKTEST SPY sma 20 50` | A backtest you can trust: costs, next-bar fills, look-ahead check, walk-forward, deflated Sharpe |
-| `RISK SPY 60 TLT 30 GLD 10` | VaR and expected shortfall three ways, a VaR backtest, correlations, risk contributions, optimal weights |
-| `OPT AAPL` | Option prices three ways, Greeks, implied volatility, strategy builder with payoff diagrams |
-| `ASK …` · `BT …` · `DEBATE TSLA` | AI research agent with a live trace of every tool it uses |
-| `NOTES` | Every past agent run: answer, prompt and tool trace |
-| `SIM` | Trade against five kinds of bots; trigger news, a flash crash or a liquidity drain |
-| `ARENA` | A shared simulated market where AI agents trade (through MCP) and you can join them |
-| `W NVDA` · `W -NVDA` | Add to / remove from the watchlist on the home screen |
-| `MCP` | Use FinHub from Claude Desktop, Claude Code or any MCP client |
-| `AI` | Pick the AI provider: Claude, OpenAI or a free local model (Ollama) |
-| `SYS` · `HELP` | Engine and data-source health · every command |
+| `SCREEN` | Filter large caps / your watchlist / any tickers by price, day move, size, 52-week range, sector |
+| `CMP AAPL MSFT NVDA` | Performance, volatility, Sharpe, drawdown and correlation, side by side |
+| `BACKTEST SPY sma 20 50` | A backtest with costs, look-ahead check, walk-forward, deflated Sharpe and a parameter map |
+| `RISK SPY 60 TLT 30 GLD 10` | VaR and expected shortfall three ways, a VaR backtest, correlations, optimal weights |
+| `OPT AAPL` | Option prices three ways, Greeks, implied volatility, strategy builder with payoffs |
+| `ALERT AAPL > 200` · `ALERT NVDA -5%` | Price and day-move alerts with desktop notifications |
+| `ASK …` · `BT …` · `DEBATE TSLA` | AI research agent with a live trace of every tool it uses (`NOTES` keeps them) |
+| `SIM` · `ARENA` | Trade against bots · a shared market where AI agents trade too |
+| `W NVDA` · `MCP` · `AI` · `HELP` | Watchlist · connect AI assistants · pick the AI provider · all commands |
 
-Start typing and suggestions appear; Tab completes. `Ctrl/Cmd+K` or `/` focuses the command bar, and
-`↑`/`↓` walk your command history (kept between sessions).
+Full reference and walkthroughs: [docs/USER_GUIDE.md](docs/USER_GUIDE.md).
 
 ![Options lab](docs/screenshot-options.png)
 
-## Install
+## Install (short version)
 
-Download the installer for your system from the latest successful
-[build](https://github.com/adibmolla-rgb/FinHub/actions/workflows/ci.yml) (open the run, scroll to
-**Artifacts**) or from [Releases](https://github.com/adibmolla-rgb/FinHub/releases) when one is
-published:
+1. Download the installer for your system: from the latest
+   [release](https://github.com/adibmolla-rgb/FinHub/releases), or from the latest green
+   [CI run](https://github.com/adibmolla-rgb/FinHub/actions/workflows/ci.yml) → **Artifacts**
+   (`finhub-windows-latest`, `finhub-macos-latest`, `finhub-ubuntu-22.04`).
+2. Run it. Windows: *More info → Run anyway*. macOS: see the [install guide](docs/INSTALL.md#the-security-warning).
+3. First launch takes a few minutes (it downloads its own Python and data engine, once).
 
-| System | File |
+Details, troubleshooting and uninstalling: [docs/INSTALL.md](docs/INSTALL.md).
+
+## Use it from Claude
+
+FinHub is an MCP server with 15 tools (quotes, history, fundamentals, macro, screener, backtests,
+portfolio risk, option pricing, alerts, watchlist, and trading in the simulated arena). Type `MCP` in
+the app for the exact setup line for your computer, or see [docs/AI_ASSISTANTS.md](docs/AI_ASSISTANTS.md).
+Claude Code opened in this repository connects automatically via [.mcp.json](.mcp.json).
+
+## Status: what has and hasn't been verified
+
+FinHub v0.4 was built in a sandbox that blocks finance websites and AI providers. Be clear about
+what that means:
+
+| Area | Status |
 |---|---|
-| Windows | `FinHub_x.y.z_x64-setup.exe` (or the `.msi`) |
-| macOS (Apple Silicon) | `FinHub_x.y.z_aarch64.dmg` |
-| Linux | `.deb` or `.AppImage` |
+| Analytics maths (backtester, risk, options, indicators, simulator, receipts) | ✅ 124 automated tests, many against textbook and reference values |
+| App, backend and engines on Windows, macOS, Linux | ✅ Built and tested in CI on all three on every change |
+| Installer on a clean machine | ✅ Linux `.deb` installed and run as a fresh user (self-setup, data-engine install, clean shutdown). Windows/macOS installers build in CI but were not hand-installed |
+| MCP server | ✅ Tested end to end over stdio, including an agent trading in the arena |
+| Live market data, fundamentals, macro, screener against real providers | ⚠️ **Not yet seen working live.** Provider fallback, error reporting and every screen are tested with recorded or synthetic data |
+| AI agent answering with a real API key | ⚠️ Requests verified to reach Anthropic's API (rejected only for a placeholder key) |
 
-You don't need Python or anything else. **The first launch takes a few minutes**: FinHub downloads its
-own private copy of Python, then installs the market-data engine (a few hundred MB, once). A banner
-shows progress; later launches start in about a second.
-
-The installers are not code-signed yet, so your system will warn you the first time:
-
-- **Windows:** "Windows protected your PC" → *More info* → *Run anyway*.
-- **macOS:** if it says the app "is damaged" or "can't be opened", run
-  `xattr -cr /Applications/FinHub.app` in Terminal, then open it again.
-
-FinHub keeps its data in your user profile (`%LOCALAPPDATA%\app.finhub.terminal` on Windows,
-`~/Library/Application Support/app.finhub.terminal` on macOS, `~/.local/share/app.finhub.terminal` on
-Linux), including `logs/` if something goes wrong.
-
-### Web demo
-
-The options lab (`OPT`) and the market simulator (`SIM`) also run as a static website with no
-backend: `pnpm build:web` in `app/` builds it into `app/dist-web`, and every CI run uploads it as the
-`finhub-web-demo` artifact. To publish it on GitHub Pages: Settings → Pages → Source: **GitHub
-Actions**, then run the **Publish web demo** workflow from the Actions tab.
-
-## Why FinHub
-
-Open-source terminals tend to fail in the same ways: they won't install, they need an account, their
-data sources break silently, their numbers are sometimes wrong with nothing to catch it, and their AI
-agents are black boxes. FinHub is built around fixing those:
-
-| Problem | FinHub's answer |
-|---|---|
-| Install and launch failures | Each engine runs in its own isolated environment; a broken engine is reported, not fatal. Installers are built and tested in CI on Windows, macOS and Linux. |
-| Forced accounts | None. Bring your own LLM key if you want the agent. |
-| Silently wrong numbers | **Receipts.** Click any number to see its provider, the provider's field name, the period, when it was fetched, and for computed values the formula and inputs. Values in different units (percent vs fraction) cannot be combined without an explicit conversion. |
-| Backtests that lie | Next-bar fills, costs at every trade, an automatic look-ahead check, walk-forward testing and a deflated Sharpe ratio, with warnings when a result looks too good. |
-| Overconfident optimisers | Optimal portfolio weights come with bootstrap error bars, so you can see when they are mostly noise. |
-| Black-box AI | The agent's tool calls, inputs and results are shown as it works and saved for later. |
-
-## Backtests you can trust
-
-`BACKTEST` runs simple rules (moving-average crossover, time-series momentum, z-score mean reversion)
-on split- and dividend-adjusted prices and checks every result:
-
-- **Next-bar fills:** a signal from day *t*'s close trades at day *t+1*'s close.
-- **Costs** (commission + slippage, in basis points) are paid at every fill; results are shown before and after costs.
-- **Look-ahead check:** signals are recomputed on truncated history and must match the full run.
-- **Walk-forward:** parameters are chosen on past data only, then tested on the next period.
-- **Deflated Sharpe ratio:** the probability the edge is real after accounting for how many parameter combinations were tried.
-- **Warnings** for unadjusted prices, suspicious jumps, Sharpe above 2, too few trades, short history and cost drag.
-
-## AI agents
-
-**Inside FinHub:** `AI` to pick a provider (Claude, OpenAI or a free local Ollama model), then `ASK`,
-`BT` or `DEBATE`. The agent is [Vibe-Trading](https://github.com/HKUDS/Vibe-Trading), running in its
-own environment; FinHub shows its reasoning trace live and keeps every run in `NOTES`.
-
-**FinHub inside your AI assistant:** type `MCP` for the exact setup. Claude Desktop, Claude Code or any
-MCP client then gets FinHub's tools: quotes, history, backtests, portfolio risk and option pricing,
-with FinHub's receipts and warnings, plus `finhub_arena_*` tools to trade in the simulated `ARENA`
-market. All market tools are read-only; the arena tools only ever touch the simulation.
-
-## Data sources
-
-Every request walks a chain of free providers (no keys) and stops at the first that answers. Each
-attempt is recorded: panels say which provider served them and whether a fallback was needed, and
-`SYS` tracks every provider's recent successes and failures.
-
-| Data | Chain |
-|---|---|
-| Quote, daily history | Yahoo → Cboe → Nasdaq → TMX |
-| Company profile | Yahoo → Nasdaq → TMX → FINRA |
-| News | Yahoo → Nasdaq → TMX |
-| Financial statements | Yahoo → SEC filings → Nasdaq → TMX |
-| Macro series | OECD (units taken from the provider's metadata; undeclared units shown as reported) |
-
-Yahoo is reached through the Apache-2.0 `yfinance` library; the others through OpenBB's Apache-2.0
-provider extensions. OpenBB's own yfinance extension is AGPL-3.0, so FinHub does not use it. Provider
-data is subject to each provider's terms of use.
+If something fails against live data, the error panels name each provider tried and why it failed,
+and the logs are in your FinHub data folder ([where](docs/INSTALL.md#where-finhub-keeps-its-files)).
+Please open an issue with them.
 
 ## How it fits together
 
 ```
-app/                    Desktop app: Tauri 2 shell + React/TypeScript interface
-  src-tauri/            Sets up Python on first launch, starts/stops the backend
-  src/quant/            Options lab, indicators, compare (TypeScript, unit-tested)
-  src/sim/              Market simulator used by SIM
-backend/                Local API (FastAPI, 127.0.0.1:8765) and the finhub-mcp server
-  backtest.py risk.py   Backtester and portfolio risk (numpy)
-  fundamentals.py       Statements → ratios with receipts
-  sim.py                Shared arena market for AI agents
-engines/openbb/         Isolated env: OpenBB + yfinance, and FinHub's data worker
-engines/vibe-trading/   Isolated env: the Vibe-Trading research agent
+app/                    Desktop app: Tauri 2 (Rust) shell + React/TypeScript interface
+backend/                Local API (FastAPI on 127.0.0.1:8765) and the finhub-mcp server
+engines/openbb/         Isolated Python env: OpenBB + yfinance, and FinHub's data worker
+engines/vibe-trading/   Isolated Python env: the Vibe-Trading AI research agent
 ```
 
-The backend never imports an engine. Engines pin conflicting dependencies (OpenBB 5 needs
-`fastmcp>=4`, Vibe-Trading needs `fastmcp<4`), so each lives in its own environment and runs as a
-separate process. If the app is closed, crashes or is force-quit, the backend shuts itself down.
+More in [CLAUDE.md](CLAUDE.md#architecture).
 
-## Build from source
+## Credits and licence
 
-Requirements: [uv](https://docs.astral.sh/uv/), Node 20+ with pnpm, Rust, and on Linux the
-[Tauri system libraries](https://v2.tauri.app/start/prerequisites/).
-
-```bash
-cd backend && uv sync && cd ..
-cd engines/openbb && uv sync && cd ../..          # market data, ~220 packages
-cd engines/vibe-trading && uv sync && cd ../..    # AI agent, ~190 packages (optional)
-cd app && pnpm install && pnpm tauri dev
-```
-
-`pnpm tauri build` in `app/` produces installers. To work on the interface in a browser instead, run
-`uv run finhub-backend` in `backend/` and `pnpm dev` in `app/`, then open http://127.0.0.1:1420.
-
-Tests: `uv run pytest` in `backend/` and `engines/openbb/`, `pnpm test` in `app/`. CI runs all of
-them on Windows, macOS and Linux and builds the installers.
-
-## Roadmap
-
-Done: foundation, market data with receipts, AI agent with trace and history, market simulator,
-backtester, portfolio risk, options lab, fundamentals, macro, screener, alerts, compare, chart indicators, watchlist,
-MCP server, agent arena, self-installing installers.
-
-Next: more macro sources (IMF, ECB, Fed), drag-and-drop panel layouts (panels can already be maximised), code signing and auto-update, and a C++/WebAssembly matching engine.
-
-## Licence
-
-Apache 2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for third-party credits.
+Apache 2.0. FinHub runs [OpenBB](https://github.com/openbq-org/OpenBB) (Apache 2.0),
+[Vibe-Trading](https://github.com/HKUDS/Vibe-Trading) (MIT) and [yfinance](https://github.com/ranaroussi/yfinance)
+(Apache 2.0) as separate engines, and draws charts with
+[TradingView Lightweight Charts](https://github.com/tradingview/lightweight-charts) (Apache 2.0). See
+[NOTICE](NOTICE). Market data is subject to each provider's terms; FinHub is for personal research.
+FinHub is not affiliated with any of these projects, or with Bloomberg, Fincept or Finnhub.

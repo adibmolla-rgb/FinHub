@@ -84,7 +84,9 @@ def test_stdio_protocol_end_to_end():
         send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         tools = {t["name"]: t for t in recv(2)["result"]["tools"]}
         assert {"finhub_quote", "finhub_history", "finhub_backtest", "finhub_portfolio_risk", "finhub_price_option", "finhub_watchlist",
-                "finhub_arena_state", "finhub_arena_order", "finhub_arena_cancel", "finhub_arena_advance"} <= set(tools)
+                "finhub_arena_state", "finhub_arena_order", "finhub_arena_cancel", "finhub_arena_advance",
+                "finhub_fundamentals", "finhub_macro", "finhub_screen", "finhub_add_alert", "finhub_alerts"} <= set(tools)
+        assert tools["finhub_add_alert"]["annotations"]["readOnlyHint"] is False
         assert tools["finhub_arena_order"]["annotations"]["readOnlyHint"] is False
         assert "SIMULATED" in tools["finhub_arena_order"]["description"]
         assert tools["finhub_quote"]["annotations"]["readOnlyHint"] is True
@@ -110,3 +112,17 @@ def test_arena_tools_trade_through_the_app(monkeypatch):
     st = mcp_server.finhub_arena_state("claude")
     assert st["step"] == 70 and st["your_account"]["position"] == 50
     assert any(r["name"] == "claude" for r in st["leaderboard"])
+
+
+def test_alert_and_screen_tools_go_through_the_app(monkeypatch, tmp_path):
+    from finhub_backend import screener
+
+    monkeypatch.setenv("FINHUB_DATA_DIR", str(tmp_path))
+    monkeypatch.setattr(mcp_server, "_client", lambda: TestClient(app))
+    a = mcp_server.finhub_add_alert("spy", "move_down", 0.03)
+    assert a["description"] == "SPY: day's change reaches or falls below −3%"
+    assert mcp_server.finhub_alerts()["alerts"][0]["id"] == a["id"]
+    screener._cache.clear()
+    monkeypatch.setattr(market, "quote", lambda s: (_ for _ in ()).throw(market.MarketDataError("offline", [])))
+    out = mcp_server.finhub_screen(universe="custom", symbols=["AAA", "BBB"], min_change=0.01)
+    assert out["matches"] == [] and {f["symbol"] for f in out["failed"]} == {"AAA", "BBB"}
