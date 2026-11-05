@@ -304,3 +304,23 @@ export type RiskResult = {
 }
 
 export const riskApi = { run: (req: RiskRequest) => send<RiskResult>('/risk', 'POST', req, 240_000) }
+
+// ---------------------------------------------------------------------------------------------
+// Watchlist and saved research
+// ---------------------------------------------------------------------------------------------
+
+export type WatchQuote = { symbol: string; ok: true; quote: Quote } | { symbol: string; ok: false; error: string }
+export type NoteSummary = { id: string; title: string; kind: AskKind; created_at: string; status: string; error: string | null; preview: string }
+export type NoteStep = { id: string; tool: string; args: Record<string, unknown>; status: string; preview: string | null }
+export type Note = NoteSummary & { prompt: string; answer: string; steps: NoteStep[] }
+
+export const watchApi = {
+  get: () => get<{ symbols: string[] }>('/watchlist'),
+  set: (symbols: string[]) => send<{ symbols: string[] }>('/watchlist', 'PUT', { symbols }, 10_000),
+  quotes: () => get<WatchQuote[]>('/watchlist/quotes', 180_000),
+}
+
+export const notesApi = {
+  list: () => get<NoteSummary[]>('/notes', 15_000),
+  get: (id: string) => get<Note>(`/notes/${enc(id)}`, 15_000),
+}

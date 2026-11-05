@@ -2,7 +2,7 @@
 
 import { RANGES, type AskKind, type Range } from './api'
 
-export type PanelId = 'SYS' | 'HELP' | 'RCPT' | 'LOG'
+export type PanelId = 'SYS' | 'HELP' | 'WATCH' | 'LOG'
 
 export type CommandResult =
   | { kind: 'open'; panel: PanelId; message: string }
@@ -13,6 +13,9 @@ export type CommandResult =
   | { kind: 'ai'; message: string }
   | { kind: 'sim'; message: string }
   | { kind: 'opt'; symbol?: string; message: string }
+  | { kind: 'watch'; add?: string; remove?: string; message: string }
+  | { kind: 'notes'; message: string }
+  | { kind: 'rcpt'; message: string }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; message: string }
   | { kind: 'backtest'; symbol?: string; strategy?: string; params?: number[]; message: string }
   | { kind: 'clear'; message: string }
@@ -26,6 +29,8 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'HOME', usage: 'HOME', description: 'Back to the home workspace', status: 'ready' },
   { name: 'SYS', usage: 'SYS', description: 'Backend, engines and data-source health', status: 'ready' },
   { name: 'RCPT', usage: 'RCPT', description: 'How a number’s receipt works', status: 'ready' },
+  { name: 'W', usage: 'W NVDA  ·  W -NVDA', description: 'Add to / remove from the watchlist on the home screen', status: 'ready' },
+  { name: 'NOTES', usage: 'NOTES', description: 'Past ASK / BT / DEBATE runs with answers and traces', status: 'ready' },
   { name: 'REFRESH', usage: 'REFRESH', description: 'Reload the current view and re-check engines', status: 'ready' },
   { name: 'CLEAR', usage: 'CLEAR', description: 'Clear the activity log', status: 'ready' },
   { name: 'HELP', usage: 'HELP', description: 'List every command', status: 'ready' },
@@ -39,8 +44,8 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'SIM', usage: 'SIM', description: 'Simulated exchange: trade against bots, trigger news and crashes', status: 'ready' },
 ]
 
-const PANELS: PanelId[] = ['SYS', 'HELP', 'RCPT', 'LOG']
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const PANELS: PanelId[] = ['SYS', 'HELP', 'LOG'] // WATCH is handled by the W command (it takes arguments)
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -73,6 +78,16 @@ export function runCommand(input: string): CommandResult {
   }
 
   if (word === 'SIM') return { kind: 'sim', message: 'Market simulator' }
+  if (word === 'NOTES') return { kind: 'notes', message: 'Research history' }
+  if (word === 'RCPT') return { kind: 'rcpt', message: 'Receipts' }
+  if (word === 'W' || word === 'WATCH') {
+    const arg = words[1]?.toUpperCase()
+    if (!arg) return { kind: 'watch', message: 'Watchlist' }
+    const remove = arg.startsWith('-')
+    const sym = remove ? arg.slice(1) : arg
+    if (!SYMBOL.test(sym)) return { kind: 'error', message: 'Usage: W NVDA to add, W -NVDA to remove' }
+    return remove ? { kind: 'watch', remove: sym, message: `Removed ${sym} from the watchlist` } : { kind: 'watch', add: sym, message: `Added ${sym} to the watchlist` }
+  }
   if (word === 'RISK') {
     const rest = words.slice(1)
     const holdings: { symbol: string; weight: number }[] = []

@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from finhub_backend import __version__, agent, backtest, engines, installer, market, risk
+from finhub_backend import __version__, agent, backtest, engines, installer, market, risk, store
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -208,6 +208,60 @@ def run_backtest_endpoint(req: BacktestRequest):
         "bars": len(bars),
     }
     return result
+
+
+# --------------------------------------------------------------------------------------------------
+# Watchlist and saved research
+# --------------------------------------------------------------------------------------------------
+
+
+class WatchlistUpdate(BaseModel):
+    symbols: list[str] = Field(max_length=store.MAX_WATCHLIST)
+
+
+@app.get("/watchlist")
+def get_watchlist() -> dict:
+    return {"symbols": store.get_watchlist()}
+
+
+@app.put("/watchlist")
+def put_watchlist(update: WatchlistUpdate) -> dict:
+    try:
+        return {"symbols": store.set_watchlist(update.symbols)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/watchlist/quotes")
+def watchlist_quotes() -> list[dict]:
+    """Quote every watchlist ticker in parallel; a failure for one ticker doesn't fail the rest."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    symbols = store.get_watchlist()
+
+    def one(sym: str) -> dict:
+        try:
+            return {"symbol": sym, "ok": True, "quote": market.quote(sym)}
+        except market.MarketDataError as exc:
+            return {"symbol": sym, "ok": False, "error": str(exc)}
+
+    if not symbols:
+        return []
+    with ThreadPoolExecutor(max_workers=min(8, len(symbols))) as pool:
+        return list(pool.map(one, symbols))
+
+
+@app.get("/notes")
+def list_notes() -> list[dict]:
+    return store.list_notes()
+
+
+@app.get("/notes/{note_id}")
+def get_note(note_id: str) -> dict:
+    note = store.get_note(note_id)
+    if note is None:
+        raise HTTPException(status_code=404, detail="note not found")
+    return note
 
 
 # --------------------------------------------------------------------------------------------------

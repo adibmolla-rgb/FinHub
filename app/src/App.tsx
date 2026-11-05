@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { api, BACKEND_URL, type EngineStatus, type Health, type InstallState, type Range, type Receipt, type ReceiptExample, type SourceHealth } from './api'
+import { api, watchApi, BACKEND_URL, type EngineStatus, type Health, type InstallState, type Range, type Receipt, type ReceiptExample, type SourceHealth } from './api'
 import { backendPhase, inDesktopApp, type BackendPhase } from './tauri'
 import { runCommand, type PanelId } from './commands'
 import { HelpPanel, LogPanel, Panel, ReceiptDrawer, ReceiptPanel, SystemPanel, type LogEntry } from './components'
 import { ChartPanel, NewsPanel, ProfilePanel, QuoteStrip } from './Ticker'
 import { useTicker } from './useTicker'
 import { AgentSettingsPanel, AgentWorkspace } from './Agent'
+import { WatchPanel } from './Watch'
+import { NotesWorkspace } from './Notes'
 import { SimWorkspace } from './sim/Sim'
 import { OptionsWorkspace } from './quant/Options'
 import { BacktestWorkspace, type BacktestPreset } from './quant/Backtest'
@@ -27,6 +29,8 @@ type Workspace =
   | { kind: 'agent'; ask: AskKind; text: string; nonce: number }
   | { kind: 'ai' }
   | { kind: 'sim' }
+  | { kind: 'notes'; nonce: number }
+  | { kind: 'rcpt' }
   | { kind: 'opt'; symbol?: string; nonce: number }
   | { kind: 'backtest'; preset: BacktestPreset; nonce: number }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; nonce: number }
@@ -54,7 +58,22 @@ export default function App() {
   const now = useClock()
   const inputRef = useRef<HTMLInputElement>(null)
   const [command, setCommand] = useState('')
-  const [history, setHistory] = useState<string[]>([])
+  // Command history survives restarts (per-computer convenience; failures are harmless).
+  const [history, setHistory] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('finhub.history') ?? '[]')
+    } catch {
+      return []
+    }
+  })
+  useEffect(() => {
+    try {
+      localStorage.setItem('finhub.history', JSON.stringify(history.slice(0, 100)))
+    } catch {
+      /* storage unavailable */
+    }
+  }, [history])
+  const [watchVersion, setWatchVersion] = useState(0)
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
   const [active, setActive] = useState<PanelId>('SYS')
@@ -164,8 +183,8 @@ export default function App() {
 
   const closeReceipt = useCallback(() => setReceipt(null), [])
 
-  function submit() {
-    const input = command.trim()
+  function submit(text?: string) {
+    const input = (text ?? command).trim()
     if (!input) return
     let result = runCommand(input)
     setHistory((h) => [input, ...h].slice(0, 100))
@@ -197,6 +216,23 @@ export default function App() {
       case 'sim':
         setWorkspace({ kind: 'sim' })
         break
+      case 'notes':
+        setWorkspace({ kind: 'notes', nonce: Date.now() })
+        break
+      case 'rcpt':
+        setWorkspace({ kind: 'rcpt' })
+        break
+      case 'watch': {
+        setWorkspace({ kind: 'home' })
+        setActive('WATCH')
+        const { add, remove } = result
+        if (add || remove) {
+          watchApi.get().then(({ symbols }) =>
+            watchApi.set(add ? [...symbols, add] : symbols.filter((x) => x !== remove)).then(() => setWatchVersion((v) => v + 1)),
+          ).catch(() => {})
+        }
+        break
+      }
       case 'risk':
         setWorkspace({ kind: 'risk', holdings: result.holdings, nonce: Date.now() })
         break
@@ -287,6 +323,14 @@ export default function App() {
         <BacktestWorkspace key={workspace.nonce} preset={workspace.preset} />
       ) : workspace.kind === 'opt' ? (
         <OptionsWorkspace key={workspace.nonce} symbol={workspace.symbol} />
+      ) : workspace.kind === 'notes' ? (
+        <NotesWorkspace key={workspace.nonce} onRerun={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'rcpt' ? (
+        <main className="grid grid--single">
+          <Panel code="RCPT" title="Receipts — where every number comes from" className="grid__single">
+            <ReceiptPanel example={example} />
+          </Panel>
+        </main>
       ) : workspace.kind === 'sim' ? (
         <SimWorkspace />
       ) : workspace.kind === 'ai' ? (
@@ -312,8 +356,13 @@ export default function App() {
               sources={sources} installs={installs} onInstall={startInstall}
             />
           </Panel>
-          <Panel code="RCPT" title="Receipts — where every number comes from" active={active === 'RCPT'} className="grid__rcpt">
-            <ReceiptPanel example={example} />
+          <Panel code="WATCH" title="Watchlist" active={active === 'WATCH'} className="grid__rcpt">
+            <WatchPanel
+              online={online}
+              version={watchVersion}
+              onReceipt={setReceipt}
+              onOpen={(symbol) => submit(symbol)}
+            />
           </Panel>
           <Panel code="HELP" title="Commands" active={active === 'HELP'} className="grid__help">
             <HelpPanel />
