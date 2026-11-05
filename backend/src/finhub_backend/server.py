@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from finhub_backend import __version__, agent, alerts, backtest, engines, fundamentals, installer, macro, market, risk, sim, store
+from finhub_backend import __version__, agent, alerts, backtest, engines, fundamentals, installer, macro, market, risk, screener, sim, store
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -309,6 +309,41 @@ def sim_scenario(s: SimScenario) -> dict:
 @app.post("/sim/reset")
 def sim_reset(r: SimReset) -> dict:
     return {"step": sim.reset_arena(r.seed).book.step}
+
+
+# --------------------------------------------------------------------------------------------------
+# Screener
+# --------------------------------------------------------------------------------------------------
+
+
+class ScreenRequest(BaseModel):
+    universe: str = "large_caps"
+    symbols: list[str] | None = None
+    min_price: float | None = None
+    max_price: float | None = None
+    min_change: float | None = None
+    max_change: float | None = None
+    min_market_cap: float | None = None
+    max_from_high: float | None = None
+    min_from_low: float | None = None
+    sectors: list[str] = Field(default_factory=list)
+
+
+@app.post("/screen")
+def run_screen(req: ScreenRequest) -> dict:
+    f = screener.Filters(
+        req.min_price, req.max_price, req.min_change, req.max_change, req.min_market_cap,
+        req.max_from_high, req.min_from_low, tuple(req.sectors),
+    )
+    try:
+        return screener.screen(req.universe, f, req.symbols)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.get("/screen/universes")
+def screen_universes() -> dict:
+    return {"large_caps": screener.LARGE_CAPS, "sectors": sorted(set(screener.LARGE_CAPS.values()))}
 
 
 # --------------------------------------------------------------------------------------------------

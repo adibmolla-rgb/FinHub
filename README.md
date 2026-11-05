@@ -15,6 +15,8 @@ exchange where you and AI agents trade against bots, and it shows where every nu
 | `AAPL` | Quote, candlestick chart (SMA, EMA, Bollinger, RSI), company profile and news |
 | `FA AAPL` | Income statement, balance sheet, cash flow and key ratios |
 | `MACRO GB` | OECD inflation, unemployment, interest rates and real GDP for a country |
+| `SCREEN` | Screen ~60 large caps, your watchlist or any tickers by price, day move, market cap and 52-week range |
+| `ALERT AAPL > 200` · `ALERT NVDA -5%` | Price and day-move alerts with desktop notifications (`ALERTS` lists them) |
 | `CMP AAPL MSFT NVDA` | Performance, volatility, Sharpe, drawdown and correlation of up to 8 tickers |
 | `BACKTEST SPY sma 20 50` | A backtest you can trust: costs, next-bar fills, look-ahead check, walk-forward, deflated Sharpe |
 | `RISK SPY 60 TLT 30 GLD 10` | VaR and expected shortfall three ways, a VaR backtest, correlations, risk contributions, optimal weights |
@@ -156,10 +158,10 @@ them on Windows, macOS and Linux and builds the installers.
 ## Roadmap
 
 Done: foundation, market data with receipts, AI agent with trace and history, market simulator,
-backtester, portfolio risk, options lab, fundamentals, macro, compare, chart indicators, watchlist,
+backtester, portfolio risk, options lab, fundamentals, macro, screener, alerts, compare, chart indicators, watchlist,
 MCP server, agent arena, self-installing installers.
 
-Next: a stock screener (no free source yet), more macro sources (IMF, ECB, Fed), price alerts, dockable layouts, code signing and
+Next: more macro sources (IMF, ECB, Fed), dockable layouts, code signing and
 auto-update, a web demo, and a C++/WebAssembly matching engine.
 
 ## Licence

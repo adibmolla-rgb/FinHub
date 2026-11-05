@@ -14,6 +14,7 @@ import { CompareWorkspace } from './quant/CompareView'
 import { ArenaWorkspace } from './sim/Arena'
 import { MacroWorkspace } from './Macro'
 import { AlertsWorkspace } from './Alerts'
+import { ScreenerWorkspace } from './Screener'
 import { notify } from './notify'
 import { alertsApi, type AlertEvent } from './api'
 import { SimWorkspace } from './sim/Sim'
@@ -45,6 +46,7 @@ type Workspace =
   | { kind: 'arena' }
   | { kind: 'macro'; country: string; nonce: number }
   | { kind: 'alerts' }
+  | { kind: 'screen' }
   | { kind: 'opt'; symbol?: string; nonce: number }
   | { kind: 'backtest'; preset: BacktestPreset; nonce: number }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; nonce: number }
@@ -264,6 +266,9 @@ export default function App() {
       case 'mcp':
         setWorkspace({ kind: 'mcp' })
         break
+      case 'screen':
+        setWorkspace({ kind: 'screen' })
+        break
       case 'alerts':
         setWorkspace({ kind: 'alerts' })
         if (result.add) {
@@ -419,6 +424,8 @@ export default function App() {
         <OptionsWorkspace key={workspace.nonce} symbol={workspace.symbol} />
       ) : workspace.kind === 'notes' ? (
         <NotesWorkspace key={workspace.nonce} onRerun={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'screen' ? (
+        <ScreenerWorkspace onOpen={(s) => submit(s)} onReceipt={setReceipt} />
       ) : workspace.kind === 'alerts' ? (
         <AlertsWorkspace version={alertsVersion} />
       ) : workspace.kind === 'macro' ? (

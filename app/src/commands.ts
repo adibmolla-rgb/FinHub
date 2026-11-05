@@ -21,6 +21,7 @@ export type CommandResult =
   | { kind: 'cmp'; symbols: string[]; message: string }
   | { kind: 'arena'; message: string }
   | { kind: 'macro'; country: string; message: string }
+  | { kind: 'screen'; message: string }
   | { kind: 'alerts'; add?: { symbol: string; kind: AlertKind; threshold: number }; message: string }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; message: string }
   | { kind: 'backtest'; symbol?: string; strategy?: string; params?: number[]; message: string }
@@ -32,6 +33,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: '<TICKER>', usage: 'AAPL', description: 'Quote, chart, profile and news for a ticker', status: 'ready' },
   { name: 'EQ', usage: 'EQ MSFT 5Y', description: 'Same, with a chart range (1M 3M 6M 1Y 5Y MAX)', status: 'ready' },
   { name: 'MACRO', usage: 'MACRO GB', description: 'OECD inflation, unemployment, interest rates and GDP for a country (default US)', status: 'ready' },
+  { name: 'SCREEN', usage: 'SCREEN', description: 'Screen large caps, your watchlist or any tickers by price, move, size and 52-week range', status: 'ready' },
   { name: 'CMP', usage: 'CMP AAPL MSFT NVDA', description: 'Compare performance, risk and correlation of up to 8 tickers', status: 'ready' },
   { name: 'FA', usage: 'FA AAPL', description: 'Financial statements and key ratios, each ratio with a receipt', status: 'ready' },
   { name: 'RANGE', usage: '6M', description: 'Change the chart range of the open ticker', status: 'ready' },
@@ -57,7 +59,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'LOG'] // WATCH is handled by the W command (it takes arguments)
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', 'ARENA', 'MACRO', 'ALERT', 'ALERTS', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', 'ARENA', 'MACRO', 'ALERT', 'ALERTS', 'SCREEN', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -93,6 +95,7 @@ export function runCommand(input: string): CommandResult {
   if (word === 'NOTES') return { kind: 'notes', message: 'Research history' }
   if (word === 'ARENA') return { kind: 'arena', message: 'Agent arena' }
   if (word === 'ALERTS') return { kind: 'alerts', message: 'Alerts' }
+  if (word === 'SCREEN') return { kind: 'screen', message: 'Screener' }
   if (word === 'ALERT') {
     const m = text.match(/^ALERT\s+([A-Za-z0-9.\-^=]{1,15})\s*(>|<|\+|-)\s*([0-9]*\.?[0-9]+)\s*(%)?\s*$/i)
     if (!m) return { kind: 'error', message: 'Usage: ALERT AAPL > 200, ALERT AAPL < 150, ALERT NVDA +5% or ALERT NVDA -5%' }

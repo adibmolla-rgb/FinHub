@@ -454,3 +454,10 @@ details summary { cursor: pointer; }
 .banner--alert { border-color: var(--accent); background: rgb(61 220 151 / .08); display: flex; gap: 10px; align-items: center; }
 .banner--alert .chip { margin-left: auto; }
 @media (max-width: 900px) { .grid--alerts { grid-template-columns: 1fr; grid-template-areas: 'alertsactive' 'alertsevents'; } }
+
+/* ---------- Screener ---------- */
+.grid--screen { grid-template-columns: minmax(300px, .8fr) 2fr; grid-template-rows: minmax(0, 1fr); grid-template-areas: 'screenform screenres'; }
+.grid__screenform { grid-area: screenform; }
+.grid__screenres { grid-area: screenres; }
+.sectors { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; }
+@media (max-width: 1000px) { .grid--screen { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'screenform' 'screenres'; } }

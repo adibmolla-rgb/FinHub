@@ -372,3 +372,20 @@ export const alertsApi = {
   },
   checkNow: () => send<{ fired: AlertEvent[] }>('/alerts/check', 'POST', {}, 180_000),
 }
+
+// ---------------------------------------------------------------------------------------------
+// Screener
+// ---------------------------------------------------------------------------------------------
+
+export type ScreenRow = {
+  symbol: string; sector: string | null; price: number | null; change_pct: number | null; market_cap: number | null
+  volume: number | null; from_high_pct: number | null; from_low_pct: number | null; currency: string | null; provider: string
+  receipts: Partial<Record<'price' | 'change_pct' | 'market_cap' | 'from_high_pct', Receipt>>
+}
+export type ScreenRequest = {
+  universe: 'large_caps' | 'watchlist' | 'custom'; symbols?: string[]
+  min_price?: number; max_price?: number; min_change?: number; max_change?: number
+  min_market_cap?: number; max_from_high?: number; min_from_low?: number; sectors: string[]
+}
+export type ScreenResult = { universe: string; size: number; quoted: number; failed: { symbol: string; error: string }[]; matches: ScreenRow[]; sectors: string[] }
+export const screenApi = { run: (req: ScreenRequest) => send<ScreenResult>('/screen', 'POST', req, 240_000) }
