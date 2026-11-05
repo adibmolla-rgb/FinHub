@@ -18,6 +18,7 @@ export type CommandResult =
   | { kind: 'rcpt'; message: string }
   | { kind: 'mcp'; message: string }
   | { kind: 'fa'; symbol: string; message: string }
+  | { kind: 'cmp'; symbols: string[]; message: string }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; message: string }
   | { kind: 'backtest'; symbol?: string; strategy?: string; params?: number[]; message: string }
   | { kind: 'clear'; message: string }
@@ -27,6 +28,7 @@ export type CommandResult =
 export const COMMANDS: { name: string; usage: string; description: string; status: 'ready' | 'planned' }[] = [
   { name: '<TICKER>', usage: 'AAPL', description: 'Quote, chart, profile and news for a ticker', status: 'ready' },
   { name: 'EQ', usage: 'EQ MSFT 5Y', description: 'Same, with a chart range (1M 3M 6M 1Y 5Y MAX)', status: 'ready' },
+  { name: 'CMP', usage: 'CMP AAPL MSFT NVDA', description: 'Compare performance, risk and correlation of up to 8 tickers', status: 'ready' },
   { name: 'FA', usage: 'FA AAPL', description: 'Financial statements and key ratios, each ratio with a receipt', status: 'ready' },
   { name: 'RANGE', usage: '6M', description: 'Change the chart range of the open ticker', status: 'ready' },
   { name: 'HOME', usage: 'HOME', description: 'Back to the home workspace', status: 'ready' },
@@ -49,7 +51,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'LOG'] // WATCH is handled by the W command (it takes arguments)
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -85,6 +87,11 @@ export function runCommand(input: string): CommandResult {
   if (word === 'NOTES') return { kind: 'notes', message: 'Research history' }
   if (word === 'RCPT') return { kind: 'rcpt', message: 'Receipts' }
   if (word === 'MCP') return { kind: 'mcp', message: 'Connect AI assistants' }
+  if (word === 'CMP') {
+    const syms = [...new Set(words.slice(1).map((w) => w.toUpperCase()))]
+    if (syms.length < 2 || syms.length > 8 || !syms.every((x) => SYMBOL.test(x))) return { kind: 'error', message: 'Usage: CMP AAPL MSFT NVDA (2 to 8 tickers)' }
+    return { kind: 'cmp', symbols: syms, message: `Compare ${syms.join(', ')}` }
+  }
   if (word === 'FA') {
     const sym = words[1]?.toUpperCase()
     if (!sym || !SYMBOL.test(sym)) return { kind: 'error', message: 'Usage: FA AAPL' }

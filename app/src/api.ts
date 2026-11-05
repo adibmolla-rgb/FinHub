@@ -138,7 +138,7 @@ export const api = {
   engines: (refresh = false) => get<EngineStatus[]>(refresh ? '/engines?refresh=true' : '/engines', 120_000),
   receiptExample: () => get<ReceiptExample>('/examples/receipt'),
   quote: (s: string) => get<Quote>(`/market/quote/${enc(s)}`, DATA_TIMEOUT),
-  history: (s: string, range: Range) => get<History>(`/market/history/${enc(s)}?range=${range}`, DATA_TIMEOUT),
+  history: (s: string, range: Range, adjusted = false) => get<History>(`/market/history/${enc(s)}?range=${range}${adjusted ? '&adjusted=true' : ''}`, DATA_TIMEOUT),
   profile: (s: string) => get<Profile>(`/market/profile/${enc(s)}`, DATA_TIMEOUT),
   news: (s: string) => get<News>(`/market/news/${enc(s)}?limit=20`, DATA_TIMEOUT),
   sources: () => get<SourceHealth[]>('/market/sources'),

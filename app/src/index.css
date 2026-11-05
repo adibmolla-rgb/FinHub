@@ -408,3 +408,11 @@ details summary { cursor: pointer; }
 .stmt td:first-child { white-space: nowrap; }
 @media (max-width: 1000px) { .grid--fa { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'faratios' 'fastmt'; } }
 .toolbar-sep { width: 1px; height: 16px; background: var(--line); margin: 0 4px; }
+
+/* ---------- Compare ---------- */
+.grid--cmp { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1.4fr) minmax(0, 1fr); grid-template-areas: 'cmpchart' 'cmpstats'; }
+.grid__cmpchart { grid-area: cmpchart; }
+.grid__cmpchart .panel__body { display: flex; flex-direction: column; }
+.grid__cmpchart .chart-wrap { flex: 1; height: auto; }
+.grid__cmpstats { grid-area: cmpstats; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; }
