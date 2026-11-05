@@ -1,0 +1,16 @@
+FinHub
+Copyright 2026 Adib Molla
+
+Licensed under the Apache License, Version 2.0 (see LICENSE).
+
+FinHub runs the following third-party projects as separate engines. They are installed into their
+own environments and are not modified or redistributed as part of this repository.
+
+  OpenBB (https://github.com/openbq-org/OpenBB)
+    Copyright (c) 2021-2026 OpenBB Inc. Licensed under the Apache License, Version 2.0.
+
+  Vibe-Trading (https://github.com/HKUDS/Vibe-Trading)
+    Copyright (c) HKUDS. Licensed under the MIT License.
+
+FinHub is not affiliated with or endorsed by OpenBB Inc., HKUDS, Fincept Corporation, Bloomberg L.P.
+or Finnhub. Product names belong to their owners.

@@ -1,0 +1,30 @@
+[project]
+name = "finhub-backend"
+version = "0.1.0"
+description = "Local engine service for FinHub: data, reasoning agent, analytics and market simulator behind one API."
+readme = "README.md"
+license = "Apache-2.0"
+authors = [{ name = "Adib Molla" }]
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.8",
+]
+
+# Engines (OpenBB, Vibe-Trading, ...) are NOT dependencies of the backend. Each lives in its own
+# isolated environment under ../engines/<id>/, because they pin conflicting versions of shared
+# libraries (e.g. fastmcp). The backend talks to them as separate processes.
+
+[project.scripts]
+finhub-backend = "finhub_backend.server:run"
+
+[dependency-groups]
+dev = ["pytest>=8", "httpx>=0.27"]
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
