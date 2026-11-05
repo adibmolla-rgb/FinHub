@@ -14,6 +14,7 @@ exchange where you and AI agents trade against bots, and it shows where every nu
 |---|---|
 | `AAPL` | Quote, candlestick chart (SMA, EMA, Bollinger, RSI), company profile and news |
 | `FA AAPL` | Income statement, balance sheet, cash flow and key ratios |
+| `MACRO GB` | OECD inflation, unemployment, interest rates and real GDP for a country |
 | `CMP AAPL MSFT NVDA` | Performance, volatility, Sharpe, drawdown and correlation of up to 8 tickers |
 | `BACKTEST SPY sma 20 50` | A backtest you can trust: costs, next-bar fills, look-ahead check, walk-forward, deflated Sharpe |
 | `RISK SPY 60 TLT 30 GLD 10` | VaR and expected shortfall three ways, a VaR backtest, correlations, risk contributions, optimal weights |
@@ -109,6 +110,7 @@ attempt is recorded: panels say which provider served them and whether a fallbac
 | Company profile | Yahoo → Nasdaq → TMX → FINRA |
 | News | Yahoo → Nasdaq → TMX |
 | Financial statements | Yahoo → SEC filings → Nasdaq → TMX |
+| Macro series | OECD (units taken from the provider's metadata; undeclared units shown as reported) |
 
 Yahoo is reached through the Apache-2.0 `yfinance` library; the others through OpenBB's Apache-2.0
 provider extensions. OpenBB's own yfinance extension is AGPL-3.0, so FinHub does not use it. Provider
@@ -154,10 +156,10 @@ them on Windows, macOS and Linux and builds the installers.
 ## Roadmap
 
 Done: foundation, market data with receipts, AI agent with trace and history, market simulator,
-backtester, portfolio risk, options lab, fundamentals, compare, chart indicators, watchlist, MCP
-server, agent arena, self-installing installers.
+backtester, portfolio risk, options lab, fundamentals, macro, compare, chart indicators, watchlist,
+MCP server, agent arena, self-installing installers.
 
-Next: a stock screener, macro and economic data, price alerts, dockable layouts, code signing and
+Next: a stock screener (no free source yet), more macro sources (IMF, ECB, Fed), price alerts, dockable layouts, code signing and
 auto-update, a web demo, and a C++/WebAssembly matching engine.
 
 ## Licence
