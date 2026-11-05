@@ -83,6 +83,21 @@ def install_status(engine_id: str) -> dict:
     return installer.state(engine_id).public()
 
 
+@app.get("/mcp/config")
+def mcp_config() -> dict:
+    """How to connect an MCP client (e.g. Claude Desktop) to FinHub on this computer."""
+    import sys
+    from pathlib import Path
+
+    exe = Path(sys.executable).parent / ("finhub-mcp.exe" if sys.platform == "win32" else "finhub-mcp")
+    return {
+        "command": str(exe),
+        "exists": exe.exists(),
+        "claude_desktop": {"mcpServers": {"finhub": {"command": str(exe)}}},
+        "claude_code": f'claude mcp add finhub -- "{exe}"',
+    }
+
+
 @app.get("/examples/receipt")
 def receipt_example() -> dict:
     """A worked example of a receipt, built from fixed illustrative inputs (not live data)."""
@@ -140,8 +155,8 @@ def market_quote(symbol: str):
 
 
 @app.get("/market/history/{symbol}")
-def market_history(symbol: str, range: str = Query("1Y", pattern="^(1M|3M|6M|1Y|5Y|MAX)$")):
-    return _market(market.history, _check(symbol), range)
+def market_history(symbol: str, range: str = Query("1Y", pattern="^(1M|3M|6M|1Y|5Y|MAX)$"), adjusted: bool = False):
+    return _market(market.history, _check(symbol), range, adjusted)
 
 
 @app.get("/market/profile/{symbol}")

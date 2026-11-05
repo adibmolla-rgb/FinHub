@@ -1,0 +1,96 @@
+import json
+import subprocess
+import sys
+from pathlib import Path
+
+import httpx
+import pytest
+from fastapi.testclient import TestClient
+
+from finhub_backend import market, mcp_server, options
+from finhub_backend.server import app
+from finhub_backend.worker_client import EngineWorker
+
+from .test_market import QUOTE_RESULT
+
+
+def test_python_options_port_matches_reference():
+    assert options.black_scholes("call", 100, 100, 1, 0.05, 0, 0.2) == pytest.approx(10.450583572185565, abs=1e-9)
+    put = options.black_scholes("put", 100, 110, 1, 0.05, 0, 0.3)
+    assert options.binomial("put", 100, 110, 1, 0.05, 0, 0.3, american=True) > put + 0.1
+    assert options.implied_vol(put, "put", 100, 110, 1, 0.05, 0) == pytest.approx(0.3, abs=1e-7)
+    assert options.implied_vol(1000, "call", 100, 100, 1, 0.05, 0) is None
+    g = options.greeks("call", 100, 100, 1, 0.05, 0, 0.2)
+    h = 1e-4
+    fd = (options.black_scholes("call", 100 + h, 100, 1, 0.05, 0, 0.2) - options.black_scholes("call", 100 - h, 100, 1, 0.05, 0, 0.2)) / (2 * h)
+    assert g["delta"] == pytest.approx(fd, abs=1e-6)
+
+
+def test_price_option_tool_works_without_the_app():
+    out = mcp_server.finhub_price_option("call", 100, 100, 365, 0.2, 0.05, 0.0, market_price=10.450583572185565)
+    assert out["european_black_scholes"] == pytest.approx(10.4506, abs=1e-4)
+    assert out["implied_volatility"] == pytest.approx(0.2, abs=1e-6)
+
+
+def test_tools_explain_when_finhub_is_not_running(monkeypatch):
+    monkeypatch.setattr(mcp_server, "BACKEND", "http://127.0.0.1:9")  # nothing listens on port 9
+    with pytest.raises(mcp_server.FinHubUnavailable, match="Open the FinHub app"):
+        mcp_server.finhub_watchlist()
+
+
+def test_quote_tool_goes_through_the_app(monkeypatch, tmp_path):
+    script = tmp_path / "w.py"
+    script.write_text(
+        "import json,sys\n"
+        f"R={json.dumps(QUOTE_RESULT)!r}\n"
+        "for l in sys.stdin:\n"
+        "    q=json.loads(l); print(json.dumps({'id':q['id'],'ok':True,'result':json.loads(R)}),flush=True)\n"
+    )
+    w = EngineWorker(Path(sys.executable), script)
+    market.set_worker(w)
+    monkeypatch.setattr(mcp_server, "_client", lambda: TestClient(app))
+    try:
+        out = mcp_server.finhub_quote("test")
+        assert out["values"]["change_pct"] == {"value": pytest.approx(0.1), "unit": "fraction", "source": "computed by FinHub", "formula": "Change ÷ Previous close"}
+        assert out["fallback_used"] is True
+    finally:
+        w.stop()
+        market.set_worker(None)
+
+
+def test_stdio_protocol_end_to_end():
+    """Launch finhub-mcp like Claude Desktop would and speak MCP to it over stdio."""
+    exe = Path(sys.executable).parent / ("finhub-mcp.exe" if sys.platform == "win32" else "finhub-mcp")
+    proc = subprocess.Popen([str(exe)], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+
+    def send(msg):
+        proc.stdin.write(json.dumps(msg) + "\n")
+        proc.stdin.flush()
+
+    def recv(want_id):
+        while True:
+            line = proc.stdout.readline()
+            assert line, "server closed the connection"
+            msg = json.loads(line)
+            if msg.get("id") == want_id:
+                return msg
+
+    try:
+        send({"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {
+            "protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}})
+        init = recv(1)
+        assert init["result"]["serverInfo"]["name"] == "finhub"
+        send({"jsonrpc": "2.0", "method": "notifications/initialized"})
+        send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
+        tools = {t["name"]: t for t in recv(2)["result"]["tools"]}
+        assert {"finhub_quote", "finhub_history", "finhub_backtest", "finhub_portfolio_risk", "finhub_price_option", "finhub_watchlist"} <= set(tools)
+        assert tools["finhub_quote"]["annotations"]["readOnlyHint"] is True
+        send({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "finhub_price_option", "arguments": {
+            "option_type": "call", "spot": 100, "strike": 100, "days_to_expiry": 365, "volatility": 0.2, "rate": 0.05}}})
+        res = recv(3)["result"]
+        assert not res.get("isError")
+        payload = res.get("structuredContent") or json.loads(res["content"][0]["text"])
+        assert payload["european_black_scholes"] == pytest.approx(10.4506, abs=1e-4)
+    finally:
+        proc.stdin.close()
+        proc.wait(timeout=10)

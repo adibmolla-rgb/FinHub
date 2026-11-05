@@ -8,6 +8,7 @@ import { useTicker } from './useTicker'
 import { AgentSettingsPanel, AgentWorkspace } from './Agent'
 import { WatchPanel } from './Watch'
 import { NotesWorkspace } from './Notes'
+import { McpPanel } from './Mcp'
 import { SimWorkspace } from './sim/Sim'
 import { OptionsWorkspace } from './quant/Options'
 import { BacktestWorkspace, type BacktestPreset } from './quant/Backtest'
@@ -31,6 +32,7 @@ type Workspace =
   | { kind: 'sim' }
   | { kind: 'notes'; nonce: number }
   | { kind: 'rcpt' }
+  | { kind: 'mcp' }
   | { kind: 'opt'; symbol?: string; nonce: number }
   | { kind: 'backtest'; preset: BacktestPreset; nonce: number }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; nonce: number }
@@ -222,6 +224,9 @@ export default function App() {
       case 'rcpt':
         setWorkspace({ kind: 'rcpt' })
         break
+      case 'mcp':
+        setWorkspace({ kind: 'mcp' })
+        break
       case 'watch': {
         setWorkspace({ kind: 'home' })
         setActive('WATCH')
@@ -325,6 +330,12 @@ export default function App() {
         <OptionsWorkspace key={workspace.nonce} symbol={workspace.symbol} />
       ) : workspace.kind === 'notes' ? (
         <NotesWorkspace key={workspace.nonce} onRerun={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'mcp' ? (
+        <main className="grid grid--single">
+          <Panel code="MCP" title="Use FinHub from AI assistants" className="grid__single">
+            <McpPanel />
+          </Panel>
+        </main>
       ) : workspace.kind === 'rcpt' ? (
         <main className="grid grid--single">
           <Panel code="RCPT" title="Receipts — where every number comes from" className="grid__single">

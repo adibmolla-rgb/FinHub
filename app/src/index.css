@@ -392,3 +392,6 @@ details summary { cursor: pointer; }
 @media (max-width: 1000px) {
   .grid--notes { grid-template-columns: 1fr; grid-template-rows: auto; grid-template-areas: 'noteslist' 'notesans' 'notestrace'; }
 }
+
+.codebox { display: flex; gap: 8px; align-items: flex-start; }
+.codebox pre { flex: 1; margin: 0; padding: 8px 10px; background: var(--bg); border: 1px solid var(--line); border-radius: 5px; font: 12px var(--mono); white-space: pre-wrap; word-break: break-all; }

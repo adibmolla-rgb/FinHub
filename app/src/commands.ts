@@ -16,6 +16,7 @@ export type CommandResult =
   | { kind: 'watch'; add?: string; remove?: string; message: string }
   | { kind: 'notes'; message: string }
   | { kind: 'rcpt'; message: string }
+  | { kind: 'mcp'; message: string }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; message: string }
   | { kind: 'backtest'; symbol?: string; strategy?: string; params?: number[]; message: string }
   | { kind: 'clear'; message: string }
@@ -37,6 +38,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'ASK', usage: 'ASK is NVDA momentum still working after costs?', description: 'Reasoning agent with a visible trace of every tool it uses', status: 'ready' },
   { name: 'BT', usage: 'BT SPY 20/50 day moving-average crossover', description: 'Agent backtest with costs, buy-and-hold comparison and validation warnings', status: 'ready' },
   { name: 'DEBATE', usage: 'DEBATE TSLA', description: 'Bull case, bear case and a neutral judge', status: 'ready' },
+  { name: 'MCP', usage: 'MCP', description: 'Use FinHub from Claude Desktop, Claude Code or other AI assistants', status: 'ready' },
   { name: 'AI', usage: 'AI', description: 'Choose the AI provider (Claude, OpenAI or local Ollama) and key', status: 'ready' },
   { name: 'BACKTEST', usage: 'BACKTEST SPY sma 20 50', description: 'FinHub backtester: costs, next-bar fills, walk-forward, deflated Sharpe (also momentum 126, meanrev 20 2)', status: 'ready' },
   { name: 'RISK', usage: 'RISK SPY 60 TLT 30 GLD 10', description: 'Portfolio VaR/ES three ways, VaR backtest, correlations, risk contributions, optimal weights', status: 'ready' },
@@ -45,7 +47,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'LOG'] // WATCH is handled by the W command (it takes arguments)
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -80,6 +82,7 @@ export function runCommand(input: string): CommandResult {
   if (word === 'SIM') return { kind: 'sim', message: 'Market simulator' }
   if (word === 'NOTES') return { kind: 'notes', message: 'Research history' }
   if (word === 'RCPT') return { kind: 'rcpt', message: 'Receipts' }
+  if (word === 'MCP') return { kind: 'mcp', message: 'Connect AI assistants' }
   if (word === 'W' || word === 'WATCH') {
     const arg = words[1]?.toUpperCase()
     if (!arg) return { kind: 'watch', message: 'Watchlist' }
