@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ApiError, compact, formatValue, fundamentalsApi, timeAgo, type Fundamentals, type Receipt } from './api'
 import { Panel } from './components'
+import { CopyCsvButton } from './CopyCsv'
 
 const RATIOS: [string, string][] = [
   ['revenue', 'Revenue'], ['revenue_growth', 'Revenue growth'], ['gross_margin', 'Gross margin'], ['operating_margin', 'Operating margin'],
@@ -62,6 +63,7 @@ export function FundamentalsWorkspace({ symbol, onReceipt }: { symbol: string; o
         <div className="stack">
           <div className="ticket">
             {TABS.map(([k, l]) => <button key={k} className={`chip ${tab === k ? 'chip--on' : ''}`} onClick={() => setTab(k)}>{l}</button>)}
+            {st && <CopyCsvButton rows={() => [['line_item', ...st.periods], ...st.rows.map((r) => [r.field, ...r.values])]} />}
             {st && <span className="badge" style={{ marginLeft: 'auto' }}>via {st.provider_name} · {timeAgo(st.fetched_at)}{st.currency ? ` · ${st.currency}` : ''}</span>}
           </div>
           {stErr && <p className="bad small">{stErr.error}</p>}

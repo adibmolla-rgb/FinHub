@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ColorType, createChart, LineSeries, type Time } from 'lightweight-charts'
 import { api, ApiError, type History, type Range } from '../api'
 import { Panel } from '../components'
+import { CopyCsvButton } from '../CopyCsv'
 import { align, correlation, returns, stats } from './compare'
 import { rebase } from './indicators'
 
@@ -106,6 +107,9 @@ export function CompareWorkspace({ symbols }: { symbols: string[] }) {
                 </tbody>
               </table>
             )}
+            <div className="ticket">
+              <CopyCsvButton label="Copy prices" rows={() => [['date', ...loaded], ...aligned.dates.map((d, i) => [d, ...loaded.map((s) => aligned.closes[s][i])])]} />
+            </div>
             <p className="muted small">Daily-return correlations. Sharpe uses a zero risk-free rate. Prices adjusted for splits and dividends, so total return includes dividends.</p>
           </div>
         ) : <p className="muted">—</p>}

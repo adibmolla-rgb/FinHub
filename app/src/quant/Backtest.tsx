@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { ColorType, createChart, LineSeries, AreaSeries, type Time } from 'lightweight-charts'
 import { ApiError, backtestApi, type BacktestRequest, type BacktestResult, type Metrics, type StrategyInfo } from '../api'
 import { Panel } from '../components'
+import { CopyCsvButton } from '../CopyCsv'
 
 const pct = (x: number | undefined, d = 1) => (x == null || !Number.isFinite(x) ? '—' : `${(x * 100).toFixed(d)}%`)
 const num = (x: number | undefined, d = 2) => (x == null || !Number.isFinite(x) ? '—' : x.toFixed(d))
@@ -193,6 +194,15 @@ export function BacktestWorkspace({ preset }: { preset: BacktestPreset }) {
           <div className="stack">
             <MetricsTable m={result.metrics} />
             <p className="muted small">{result.period.start} → {result.period.end}. Sharpe uses a zero risk-free rate.</p>
+            <div className="ticket">
+              <CopyCsvButton label="Copy metrics" rows={() => [
+                ['metric', 'strategy', 'before_costs', 'buy_and_hold'],
+                ...(['total_return', 'cagr', 'volatility', 'sharpe', 'sortino', 'max_drawdown', 'calmar', 'trades', 'exposure', 'turnover_per_year'] as const).map((k) => [
+                  k, result.metrics.strategy[k] ?? null, result.metrics.strategy_before_costs[k] ?? null, result.metrics.buy_hold[k] ?? null,
+                ]),
+              ]} />
+              <CopyCsvButton label="Copy equity curve" rows={() => [['date', 'strategy', 'buy_and_hold', 'drawdown'], ...result.curve.map((c) => [c.time, c.strategy, c.buy_hold, c.drawdown])]} />
+            </div>
           </div>
         ) : <p className="muted">—</p>}
       </Panel>
