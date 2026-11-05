@@ -1,6 +1,6 @@
 [project]
 name = "finhub-backend"
-version = "0.3.0"
+version = "0.4.0"
 description = "Local engine service for FinHub: data, reasoning agent, analytics and market simulator behind one API."
 license = "Apache-2.0"
 authors = [{ name = "Adib Molla" }]

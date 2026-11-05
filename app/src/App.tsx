@@ -441,7 +441,7 @@ export default function App() {
           data sources {sources?.length ? `${sources.length - failing}/${sources.length} ok` : '—'}
         </span>
         {workspace.kind === 'ticker' && <span className="muted">{workspace.symbol} · {workspace.range}</span>}
-        <span className="muted statusbar__right">{BACKEND_URL} · FinHub v0.3.0</span>
+        <span className="muted statusbar__right">{BACKEND_URL} · FinHub v0.4.0</span>
       </footer>
     </div>
   )

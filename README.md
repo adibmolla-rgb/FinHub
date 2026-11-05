@@ -1,17 +1,43 @@
 # FinHub
 
-An open-source market research terminal that runs as a desktop app (and later as a website). It
-brings a data platform, an AI reasoning agent, analytics and a simulated exchange together in one
-keyboard-driven workspace, and it shows where every number comes from.
+An open-source market research terminal for your desktop. One keyboard-driven app for market data,
+fundamentals, a backtester, portfolio risk, an options lab, an AI research agent and a simulated
+exchange where you and AI agents trade against bots, and it shows where every number comes from.
 
-> Status: **v0.3.** Market data with receipts and provider fallback; an AI reasoning agent (`ASK`, `BT`,
-> `DEBATE`) with a visible trace of every tool it uses; a market simulator (`SIM`); installers for Windows, macOS and Linux that set
-> everything up themselves. Analytics panels (options, risk, screener) are next.
+> **v0.4.** Everything below works today. Installers for Windows, macOS and Linux set themselves up.
+
+![Agent arena](docs/screenshot-arena.png)
+
+## What it does
+
+| Command | What you get |
+|---|---|
+| `AAPL` | Quote, candlestick chart (SMA, EMA, Bollinger, RSI), company profile and news |
+| `FA AAPL` | Income statement, balance sheet, cash flow and key ratios |
+| `CMP AAPL MSFT NVDA` | Performance, volatility, Sharpe, drawdown and correlation of up to 8 tickers |
+| `BACKTEST SPY sma 20 50` | A backtest you can trust: costs, next-bar fills, look-ahead check, walk-forward, deflated Sharpe |
+| `RISK SPY 60 TLT 30 GLD 10` | VaR and expected shortfall three ways, a VaR backtest, correlations, risk contributions, optimal weights |
+| `OPT AAPL` | Option prices three ways, Greeks, implied volatility, strategy builder with payoff diagrams |
+| `ASK …` · `BT …` · `DEBATE TSLA` | AI research agent with a live trace of every tool it uses |
+| `NOTES` | Every past agent run: answer, prompt and tool trace |
+| `SIM` | Trade against five kinds of bots; trigger news, a flash crash or a liquidity drain |
+| `ARENA` | A shared simulated market where AI agents trade (through MCP) and you can join them |
+| `W NVDA` · `W -NVDA` | Add to / remove from the watchlist on the home screen |
+| `MCP` | Use FinHub from Claude Desktop, Claude Code or any MCP client |
+| `AI` | Pick the AI provider: Claude, OpenAI or a free local model (Ollama) |
+| `SYS` · `HELP` | Engine and data-source health · every command |
+
+Start typing and suggestions appear; Tab completes. `Ctrl/Cmd+K` or `/` focuses the command bar, and
+`↑`/`↓` walk your command history (kept between sessions).
+
+![Options lab](docs/screenshot-options.png)
 
 ## Install
 
-Download the installer for your system from the
-[latest release](https://github.com/adibmolla-rgb/FinHub/releases):
+Download the installer for your system from the latest successful
+[build](https://github.com/adibmolla-rgb/FinHub/actions/workflows/ci.yml) (open the run, scroll to
+**Artifacts**) or from [Releases](https://github.com/adibmolla-rgb/FinHub/releases) when one is
+published:
 
 | System | File |
 |---|---|
@@ -33,15 +59,7 @@ FinHub keeps its data in your user profile (`%LOCALAPPDATA%\app.finhub.terminal`
 `~/Library/Application Support/app.finhub.terminal` on macOS, `~/.local/share/app.finhub.terminal` on
 Linux), including `logs/` if something goes wrong.
 
-### AI agent setup
-
-Type `AI` and choose a provider: **Claude** or **OpenAI** (paste an API key), or **Ollama** to run a
-model locally for free. Then `ASK …`, `BT …` or `DEBATE …`. The first agent command installs the
-agent engine (Vibe-Trading) if it isn't installed yet; you can also install it from `SYS`.
-
-![FinHub v0.1](docs/screenshot.png)
-
-## Why
+## Why FinHub
 
 Open-source terminals tend to fail in the same ways: they won't install, they need an account, their
 data sources break silently, their numbers are sometimes wrong with nothing to catch it, and their AI
@@ -49,21 +67,66 @@ agents are black boxes. FinHub is built around fixing those:
 
 | Problem | FinHub's answer |
 |---|---|
-| Install and launch failures | Every engine runs in its own isolated environment; a broken engine is reported, not fatal. Installers are built and tested in CI on macOS, Windows and Linux. |
-| Forced accounts | None. Bring your own data and LLM keys. |
-| Silently wrong numbers | **Receipts.** Every value carries its unit, source, fetch time and formula. Values in different units (percent vs fraction) cannot be added without an explicit conversion. |
-| Black-box AI | The agent's plan, data, code and validation are shown step by step and saved. *(planned)* |
+| Install and launch failures | Each engine runs in its own isolated environment; a broken engine is reported, not fatal. Installers are built and tested in CI on Windows, macOS and Linux. |
+| Forced accounts | None. Bring your own LLM key if you want the agent. |
+| Silently wrong numbers | **Receipts.** Click any number to see its provider, the provider's field name, the period, when it was fetched, and for computed values the formula and inputs. Values in different units (percent vs fraction) cannot be combined without an explicit conversion. |
+| Backtests that lie | Next-bar fills, costs at every trade, an automatic look-ahead check, walk-forward testing and a deflated Sharpe ratio, with warnings when a result looks too good. |
+| Overconfident optimisers | Optimal portfolio weights come with bootstrap error bars, so you can see when they are mostly noise. |
+| Black-box AI | The agent's tool calls, inputs and results are shown as it works and saved for later. |
+
+## Backtests you can trust
+
+`BACKTEST` runs simple rules (moving-average crossover, time-series momentum, z-score mean reversion)
+on split- and dividend-adjusted prices and checks every result:
+
+- **Next-bar fills:** a signal from day *t*'s close trades at day *t+1*'s close.
+- **Costs** (commission + slippage, in basis points) are paid at every fill; results are shown before and after costs.
+- **Look-ahead check:** signals are recomputed on truncated history and must match the full run.
+- **Walk-forward:** parameters are chosen on past data only, then tested on the next period.
+- **Deflated Sharpe ratio:** the probability the edge is real after accounting for how many parameter combinations were tried.
+- **Warnings** for unadjusted prices, suspicious jumps, Sharpe above 2, too few trades, short history and cost drag.
+
+## AI agents
+
+**Inside FinHub:** `AI` to pick a provider (Claude, OpenAI or a free local Ollama model), then `ASK`,
+`BT` or `DEBATE`. The agent is [Vibe-Trading](https://github.com/HKUDS/Vibe-Trading), running in its
+own environment; FinHub shows its reasoning trace live and keeps every run in `NOTES`.
+
+**FinHub inside your AI assistant:** type `MCP` for the exact setup. Claude Desktop, Claude Code or any
+MCP client then gets FinHub's tools: quotes, history, backtests, portfolio risk and option pricing,
+with FinHub's receipts and warnings, plus `finhub_arena_*` tools to trade in the simulated `ARENA`
+market. All market tools are read-only; the arena tools only ever touch the simulation.
+
+## Data sources
+
+Every request walks a chain of free providers (no keys) and stops at the first that answers. Each
+attempt is recorded: panels say which provider served them and whether a fallback was needed, and
+`SYS` tracks every provider's recent successes and failures.
+
+| Data | Chain |
+|---|---|
+| Quote, daily history | Yahoo → Cboe → Nasdaq → TMX |
+| Company profile | Yahoo → Nasdaq → TMX → FINRA |
+| News | Yahoo → Nasdaq → TMX |
+| Financial statements | Yahoo → SEC filings → Nasdaq → TMX |
+
+Yahoo is reached through the Apache-2.0 `yfinance` library; the others through OpenBB's Apache-2.0
+provider extensions. OpenBB's own yfinance extension is AGPL-3.0, so FinHub does not use it. Provider
+data is subject to each provider's terms of use.
 
 ## How it fits together
 
 ```
 app/                    Desktop app: Tauri 2 shell + React/TypeScript interface
-  src-tauri/            Starts the backend on launch, stops it on exit
-backend/                Local API (FastAPI, 127.0.0.1:8765): receipts, engine registry
+  src-tauri/            Sets up Python on first launch, starts/stops the backend
+  src/quant/            Options lab, indicators, compare (TypeScript, unit-tested)
+  src/sim/              Market simulator used by SIM
+backend/                Local API (FastAPI, 127.0.0.1:8765) and the finhub-mcp server
+  backtest.py risk.py   Backtester and portfolio risk (numpy)
+  fundamentals.py       Statements → ratios with receipts
+  sim.py                Shared arena market for AI agents
 engines/openbb/         Isolated env: OpenBB + yfinance, and FinHub's data worker
-  worker.py             Long-lived process; JSON lines over stdin/stdout; exits when the backend does
-  providers.py          Provider chains: Yahoo → Cboe → Nasdaq → TMX (all free, no keys)
-engines/vibe-trading/   Isolated env: Vibe-Trading (reasoning agent, backtests, options, debates)
+engines/vibe-trading/   Isolated env: the Vibe-Trading research agent
 ```
 
 The backend never imports an engine. Engines pin conflicting dependencies (OpenBB 5 needs
@@ -73,62 +136,29 @@ separate process. If the app is closed, crashes or is force-quit, the backend sh
 ## Build from source
 
 Requirements: [uv](https://docs.astral.sh/uv/), Node 20+ with pnpm, Rust, and on Linux the
-[Tauri system libraries](https://v2.tauri.app/start/prerequisites/). `pnpm tauri build` in `app/`
-produces installers; push a `v*` tag and GitHub Actions builds them for all three systems.
+[Tauri system libraries](https://v2.tauri.app/start/prerequisites/).
 
 ```bash
 cd backend && uv sync && cd ..
-cd engines/openbb && uv sync && cd ../..          # optional, ~220 packages
-cd engines/vibe-trading && uv sync && cd ../..    # optional, ~190 packages
+cd engines/openbb && uv sync && cd ../..          # market data, ~220 packages
+cd engines/vibe-trading && uv sync && cd ../..    # AI agent, ~190 packages (optional)
 cd app && pnpm install && pnpm tauri dev
 ```
 
-To work on the interface in a browser instead: run `uv run finhub-backend` in `backend/` and
-`pnpm dev` in `app/`, then open http://127.0.0.1:1420.
+`pnpm tauri build` in `app/` produces installers. To work on the interface in a browser instead, run
+`uv run finhub-backend` in `backend/` and `pnpm dev` in `app/`, then open http://127.0.0.1:1420.
 
-Keyboard: `Ctrl/Cmd+K` or `/` focuses the command bar, `↑`/`↓` walk command history. Type `HELP`.
-
-| Command | Does |
-|---|---|
-| `AAPL` | Quote, chart, profile and news for a ticker |
-| `EQ MSFT 5Y` | Same, with a chart range (`1M 3M 6M 1Y 5Y MAX`) |
-| `6M` or `RANGE 6M` | Change the open chart's range |
-| `SYS` / `HOME` | Engines and data-source health |
-| `REFRESH` | Reload the current view |
-| `ASK <question>` | Reasoning agent; the trace panel shows every tool call, its inputs and result |
-| `BT <strategy>` | Agent backtest with costs, next-bar fills, buy-and-hold comparison and validation warnings |
-| `DEBATE <ticker>` | Bull case, bear case and a neutral judge |
-| `AI` | Choose the AI provider, model and key |
-| `SIM` | Market simulator: trade against bots (B buy, S sell, F flatten, Space pause), trigger news, a flash crash or a liquidity drain |
-
-Click any number to open its receipt: the provider, the provider's field name, when it was fetched,
-and for computed values (change, % change, distance from the 52-week high) the formula and inputs.
-FinHub computes those itself rather than trusting providers, which disagree on percent vs fraction.
-
-## Data sources
-
-Every request walks a chain of free providers and stops at the first that answers. Each attempt is
-recorded: the data panels say which provider served them and whether a fallback was needed, and the
-SYS panel tracks every provider's recent successes and failures.
-
-| Data | Chain |
-|---|---|
-| Quote | Yahoo → Cboe → Nasdaq → TMX |
-| Daily history | Yahoo → Cboe → Nasdaq → TMX |
-| Company profile | Yahoo → Nasdaq → TMX → FINRA |
-| News | Yahoo → Nasdaq → TMX |
-
-Yahoo is reached through the Apache-2.0 `yfinance` library. OpenBB's own yfinance extension is
-AGPL-3.0, so FinHub does not use it. Provider data is subject to each provider's terms of use.
+Tests: `uv run pytest` in `backend/` and `engines/openbb/`, `pnpm test` in `app/`. CI runs all of
+them on Windows, macOS and Linux and builds the installers.
 
 ## Roadmap
 
-1. **Foundation** ✅ App shell, self-starting backend, engine registry, receipts, CI.
-2. **Market data** ✅ Quote, chart, profile and news with receipts, provider fallback and source health. *Next within this step: fundamentals and financial statements, macro data, watchlists.*
-3. **Reasoning agent** ✅ Vibe-Trading embedded; `ASK`, `BT` and `DEBATE` with a live reasoning trace. *Next: saved research notes and re-runs.*
-4. **Analytics panels.** Options, portfolio risk, screener, valuation.
-5. **Market simulator** ✅ Price-time-priority matching engine, five bot strategies (market maker with inventory skew and order-flow learning, noise, momentum, mean reversion, informed), news / crash / liquidity-drain scenarios, and your P&L split into spread earned vs adverse selection. *Next: an MCP server so outside AI agents can trade in it; a C++/WebAssembly engine.*
-6. **Polish.** Self-installing Python runtime ✅ · installers for all three systems ✅ · next: dockable layouts, code signing, auto-update, a web demo.
+Done: foundation, market data with receipts, AI agent with trace and history, market simulator,
+backtester, portfolio risk, options lab, fundamentals, compare, chart indicators, watchlist, MCP
+server, agent arena, self-installing installers.
+
+Next: a stock screener, macro and economic data, price alerts, dockable layouts, code signing and
+auto-update, a web demo, and a C++/WebAssembly matching engine.
 
 ## Licence
 
