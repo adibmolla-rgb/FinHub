@@ -86,7 +86,7 @@ jobs:
       - name: No module names that clash on case-insensitive file systems (Windows, macOS)
         shell: bash
         run: |
-          dupes=$(git ls-files src | grep -E '\.(ts|tsx)$' | sed -E 's/\.(test\.)?tsx?$//' | tr 'A-Z' 'a-z' | sort | uniq -d)
+          dupes=$(git ls-files src | grep -E '\.(ts|tsx)$' | sed -E 's/\.tsx?$//' | tr 'A-Z' 'a-z' | sort | uniq -d)
           if [ -n "$dupes" ]; then echo "Clashing module names (differ only by case or .ts/.tsx): $dupes"; exit 1; fi
       - run: pnpm lint
       - run: pnpm test
