@@ -143,3 +143,15 @@ describe('command bar', () => {
     expect(runCommand('ASK what moved oil?')).toMatchObject({ kind: 'agent', ask: 'ask', text: 'what moved oil?' })
   })
 })
+
+describe('ALERT parsing', () => {
+  it('reads price and move alerts and rejects ambiguous ones', () => {
+    expect(runCommand('ALERT aapl > 200')).toMatchObject({ kind: 'alerts', add: { symbol: 'AAPL', kind: 'above', threshold: 200 } })
+    expect(runCommand('ALERT AAPL<150.5')).toMatchObject({ add: { kind: 'below', threshold: 150.5 } })
+    expect(runCommand('ALERT NVDA +5%')).toMatchObject({ add: { kind: 'move_up', threshold: 0.05 } })
+    expect(runCommand('ALERT NVDA -2.5%')).toMatchObject({ add: { kind: 'move_down', threshold: 0.025 } })
+    expect(runCommand('ALERT NVDA +5')).toMatchObject({ kind: 'error' })
+    expect(runCommand('ALERT NVDA > 5%')).toMatchObject({ kind: 'error' })
+    expect(runCommand('ALERTS')).toMatchObject({ kind: 'alerts' })
+  })
+})

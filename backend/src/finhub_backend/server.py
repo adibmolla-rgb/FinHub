@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from finhub_backend import __version__, agent, backtest, engines, fundamentals, installer, macro, market, risk, sim, store
+from finhub_backend import __version__, agent, alerts, backtest, engines, fundamentals, installer, macro, market, risk, sim, store
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -30,6 +30,8 @@ async def lifespan(_: FastAPI):
             market.warmup()
 
     threading.Thread(target=startup, daemon=True, name="startup").start()
+    if os.environ.get("FINHUB_SKIP_WARMUP") != "1":
+        alerts.start_background(market.quote)
     yield
     market.worker().stop()
     agent.server.stop()
@@ -307,6 +309,43 @@ def sim_scenario(s: SimScenario) -> dict:
 @app.post("/sim/reset")
 def sim_reset(r: SimReset) -> dict:
     return {"step": sim.reset_arena(r.seed).book.step}
+
+
+# --------------------------------------------------------------------------------------------------
+# Price alerts
+# --------------------------------------------------------------------------------------------------
+
+
+class AlertIn(BaseModel):
+    symbol: str
+    kind: str
+    threshold: float
+
+
+@app.get("/alerts")
+def list_alerts() -> dict:
+    return alerts.listing()
+
+
+@app.post("/alerts")
+def add_alert(a: AlertIn) -> dict:
+    try:
+        return alerts.add(a.symbol, a.kind, a.threshold)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.delete("/alerts/{alert_id}")
+def delete_alert(alert_id: str) -> dict:
+    if not alerts.remove(alert_id):
+        raise HTTPException(status_code=404, detail="alert not found")
+    return {"deleted": alert_id}
+
+
+@app.post("/alerts/check")
+def check_alerts() -> dict:
+    """Check now instead of waiting for the background check (every 2 minutes)."""
+    return {"fired": alerts.check(market.quote)}
 
 
 # --------------------------------------------------------------------------------------------------

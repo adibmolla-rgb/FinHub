@@ -13,6 +13,9 @@ import { FundamentalsWorkspace } from './Fundamentals'
 import { CompareWorkspace } from './quant/CompareView'
 import { ArenaWorkspace } from './sim/Arena'
 import { MacroWorkspace } from './Macro'
+import { AlertsWorkspace } from './Alerts'
+import { notify } from './notify'
+import { alertsApi, type AlertEvent } from './api'
 import { SimWorkspace } from './sim/Sim'
 import { OptionsWorkspace } from './quant/OptionsLab'
 import { BacktestWorkspace, type BacktestPreset } from './quant/Backtest'
@@ -41,6 +44,7 @@ type Workspace =
   | { kind: 'cmp'; symbols: string[]; nonce: number }
   | { kind: 'arena' }
   | { kind: 'macro'; country: string; nonce: number }
+  | { kind: 'alerts' }
   | { kind: 'opt'; symbol?: string; nonce: number }
   | { kind: 'backtest'; preset: BacktestPreset; nonce: number }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; nonce: number }
@@ -84,6 +88,9 @@ export default function App() {
     }
   }, [history])
   const [watchVersion, setWatchVersion] = useState(0)
+  const [alertsVersion, setAlertsVersion] = useState(0)
+  const [toast, setToast] = useState<AlertEvent | null>(null)
+  const seenEvents = useRef<Set<string> | null>(null)
   const [historyIndex, setHistoryIndex] = useState<number | null>(null)
   const [log, setLog] = useState<LogEntry[]>([])
   const [active, setActive] = useState<PanelId>('SYS')
@@ -169,6 +176,28 @@ export default function App() {
     api.installEngine(id).then((s) => setInstalls((prev) => ({ ...prev, [id]: s })), () => {})
   }, [])
 
+  // Watch for alerts fired by the backend's background check; announce new ones.
+  useEffect(() => {
+    if (!online) return
+    const poll = () =>
+      alertsApi.list().then(({ events }) => {
+        if (seenEvents.current === null) {
+          seenEvents.current = new Set(events.map((e) => e.id)) // don't re-announce old events on launch
+          return
+        }
+        for (const e of events) {
+          if (seenEvents.current.has(e.id)) continue
+          seenEvents.current.add(e.id)
+          setToast(e)
+          notify(`FinHub alert: ${e.symbol}`, e.text)
+          setAlertsVersion((v) => v + 1)
+        }
+      }, () => {})
+    poll()
+    const t = setInterval(poll, 20_000)
+    return () => clearInterval(t)
+  }, [online])
+
   // Data-source health is cheap to fetch; keep it fresh while the backend is up.
   useEffect(() => {
     if (!online) return
@@ -234,6 +263,13 @@ export default function App() {
         break
       case 'mcp':
         setWorkspace({ kind: 'mcp' })
+        break
+      case 'alerts':
+        setWorkspace({ kind: 'alerts' })
+        if (result.add) {
+          const { symbol, kind, threshold } = result.add
+          alertsApi.add(symbol, kind, threshold).then(() => setAlertsVersion((v) => v + 1), (e) => setLog((l) => [{ at: new Date(), input, message: `Alert not added: ${e.message}`, ok: false }, ...l]))
+        }
         break
       case 'macro':
         setWorkspace({ kind: 'macro', country: result.country, nonce: Date.now() })
@@ -362,6 +398,12 @@ export default function App() {
           data works as soon as it finishes. Progress is in SYS.
         </div>
       )}
+      {toast && (
+        <div className="banner banner--alert" role="alert">
+          <strong>Alert:</strong> {toast.text}
+          <button className="chip" onClick={() => setToast(null)}>Dismiss</button>
+        </div>
+      )}
       {workspace.kind === 'agent' ? (
         <AgentWorkspace
           key={workspace.nonce}
@@ -377,6 +419,8 @@ export default function App() {
         <OptionsWorkspace key={workspace.nonce} symbol={workspace.symbol} />
       ) : workspace.kind === 'notes' ? (
         <NotesWorkspace key={workspace.nonce} onRerun={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'alerts' ? (
+        <AlertsWorkspace version={alertsVersion} />
       ) : workspace.kind === 'macro' ? (
         <MacroWorkspace key={workspace.nonce} country={workspace.country} onReceipt={setReceipt} />
       ) : workspace.kind === 'arena' ? (

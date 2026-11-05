@@ -446,3 +446,11 @@ details summary { cursor: pointer; }
 .surface td { padding: 4px 8px; text-align: center; min-width: 46px; }
 .surface__on { outline: 2px solid var(--text); outline-offset: -2px; font-weight: 700; }
 @media (max-width: 1100px) { .wfgrid { grid-template-columns: 1fr; } }
+
+/* ---------- Alerts ---------- */
+.grid--alerts { grid-template-columns: 1.2fr 1fr; grid-template-rows: minmax(0, 1fr); grid-template-areas: 'alertsactive alertsevents'; }
+.grid__alertsactive { grid-area: alertsactive; }
+.grid__alertsevents { grid-area: alertsevents; }
+.banner--alert { border-color: var(--accent); background: rgb(61 220 151 / .08); display: flex; gap: 10px; align-items: center; }
+.banner--alert .chip { margin-left: auto; }
+@media (max-width: 900px) { .grid--alerts { grid-template-columns: 1fr; grid-template-areas: 'alertsactive' 'alertsevents'; } }

@@ -354,3 +354,21 @@ export type MacroSeries = {
 }
 export type MacroDashboard = { country: string; series: Record<string, MacroSeries>; errors: Record<string, string> }
 export const macroApi = { get: (country: string) => get<MacroDashboard>(`/macro/${enc(country)}`, DATA_TIMEOUT) }
+
+// ---------------------------------------------------------------------------------------------
+// Price alerts
+// ---------------------------------------------------------------------------------------------
+
+export type AlertKind = 'above' | 'below' | 'move_up' | 'move_down'
+export type Alert = { id: string; symbol: string; kind: AlertKind; threshold: number; active: boolean; created_at: string; description: string; triggered_at?: string; triggered_price?: number }
+export type AlertEvent = { id: string; alert_id: string; at: string; symbol: string; text: string; provider?: string }
+
+export const alertsApi = {
+  list: () => get<{ alerts: Alert[]; events: AlertEvent[] }>('/alerts', 10_000),
+  add: (symbol: string, kind: AlertKind, threshold: number) => send<Alert>('/alerts', 'POST', { symbol, kind, threshold }, 10_000),
+  remove: async (id: string) => {
+    const res = await fetch(`${BACKEND_URL}/alerts/${enc(id)}`, { method: 'DELETE' })
+    if (!res.ok) throw new ApiError(`HTTP ${res.status}`, res.status)
+  },
+  checkNow: () => send<{ fired: AlertEvent[] }>('/alerts/check', 'POST', {}, 180_000),
+}

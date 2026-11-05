@@ -1,6 +1,6 @@
 // Command bar: everything in FinHub can be driven from the keyboard.
 
-import { RANGES, type AskKind, type Range } from './api'
+import { RANGES, type AlertKind, type AskKind, type Range } from './api'
 
 export type PanelId = 'SYS' | 'HELP' | 'WATCH' | 'LOG'
 
@@ -21,6 +21,7 @@ export type CommandResult =
   | { kind: 'cmp'; symbols: string[]; message: string }
   | { kind: 'arena'; message: string }
   | { kind: 'macro'; country: string; message: string }
+  | { kind: 'alerts'; add?: { symbol: string; kind: AlertKind; threshold: number }; message: string }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; message: string }
   | { kind: 'backtest'; symbol?: string; strategy?: string; params?: number[]; message: string }
   | { kind: 'clear'; message: string }
@@ -37,6 +38,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'HOME', usage: 'HOME', description: 'Back to the home workspace', status: 'ready' },
   { name: 'SYS', usage: 'SYS', description: 'Backend, engines and data-source health', status: 'ready' },
   { name: 'RCPT', usage: 'RCPT', description: 'How a number’s receipt works', status: 'ready' },
+  { name: 'ALERT', usage: 'ALERT AAPL > 200', description: 'Price alert (> or < a price, or +5% / -5% day move); ALERTS lists them', status: 'ready' },
   { name: 'W', usage: 'W NVDA  ·  W -NVDA', description: 'Add to / remove from the watchlist on the home screen', status: 'ready' },
   { name: 'NOTES', usage: 'NOTES', description: 'Past ASK / BT / DEBATE runs with answers and traces', status: 'ready' },
   { name: 'REFRESH', usage: 'REFRESH', description: 'Reload the current view and re-check engines', status: 'ready' },
@@ -55,7 +57,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'LOG'] // WATCH is handled by the W command (it takes arguments)
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', 'ARENA', 'MACRO', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', 'ARENA', 'MACRO', 'ALERT', 'ALERTS', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -90,6 +92,19 @@ export function runCommand(input: string): CommandResult {
   if (word === 'SIM') return { kind: 'sim', message: 'Market simulator' }
   if (word === 'NOTES') return { kind: 'notes', message: 'Research history' }
   if (word === 'ARENA') return { kind: 'arena', message: 'Agent arena' }
+  if (word === 'ALERTS') return { kind: 'alerts', message: 'Alerts' }
+  if (word === 'ALERT') {
+    const m = text.match(/^ALERT\s+([A-Za-z0-9.\-^=]{1,15})\s*(>|<|\+|-)\s*([0-9]*\.?[0-9]+)\s*(%)?\s*$/i)
+    if (!m) return { kind: 'error', message: 'Usage: ALERT AAPL > 200, ALERT AAPL < 150, ALERT NVDA +5% or ALERT NVDA -5%' }
+    const [, sym, op, num, pctSign] = m
+    const value = parseFloat(num)
+    const isMove = op === '+' || op === '-'
+    if (isMove && !pctSign) return { kind: 'error', message: 'Day-move alerts need a %, e.g. ALERT NVDA +5%' }
+    if (!isMove && pctSign) return { kind: 'error', message: 'Use > or < with a price, or +/- with a %' }
+    const kind: AlertKind = op === '>' ? 'above' : op === '<' ? 'below' : op === '+' ? 'move_up' : 'move_down'
+    const threshold = isMove ? value / 100 : value
+    return { kind: 'alerts', add: { symbol: sym.toUpperCase(), kind, threshold }, message: `Alert: ${sym.toUpperCase()} ${op}${num}${pctSign ?? ''}` }
+  }
   if (word === 'MACRO') {
     const country = words.slice(1).join(' ') || 'US'
     if (!/^[A-Za-z _-]{2,40}$/.test(country)) return { kind: 'error', message: 'Usage: MACRO GB (or MACRO united kingdom)' }

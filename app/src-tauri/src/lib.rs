@@ -233,6 +233,7 @@ pub fn run() {
                 .level(log::LevelFilter::Info)
                 .build(),
         )
+        .plugin(tauri_plugin_notification::init())
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![backend_phase])
         .setup(move |app| {
