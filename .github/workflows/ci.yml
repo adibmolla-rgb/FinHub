@@ -83,6 +83,11 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - run: pnpm install --frozen-lockfile
+      - name: No module names that clash on case-insensitive file systems (Windows, macOS)
+        shell: bash
+        run: |
+          dupes=$(git ls-files src | grep -E '\.(ts|tsx)$' | sed -E 's/\.(test\.)?tsx?$//' | tr 'A-Z' 'a-z' | sort | uniq -d)
+          if [ -n "$dupes" ]; then echo "Clashing module names (differ only by case or .ts/.tsx): $dupes"; exit 1; fi
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm tauri build
