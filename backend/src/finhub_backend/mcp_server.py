@@ -29,7 +29,8 @@ server = MCPServer(
         "finhub_backtest to test a trading rule with costs, next-bar fills, walk-forward and a deflated "
         "Sharpe ratio, finhub_portfolio_risk for VaR/ES and correlations, and finhub_price_option for "
         "option values and Greeks. Results include where each number came from and warnings; report "
-        "those warnings to the user rather than hiding them. This is research, not financial advice."
+        "those warnings to the user rather than hiding them. The finhub_arena_* tools trade in a SIMULATED "
+        "market with bots (no real money) for practice and experiments. This is research, not financial advice."
     ),
 )
 
@@ -178,6 +179,50 @@ def finhub_price_option(
 def finhub_watchlist() -> dict:
     """The user's FinHub watchlist tickers."""
     return _call("GET", "/watchlist")
+
+
+# --------------------------------------------------------------------------------------------------
+# Agent arena: a SIMULATED market. No real money, no real orders. Shared with the app's ARENA screen.
+# --------------------------------------------------------------------------------------------------
+
+SIMULATED = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
+
+
+@server.tool(annotations=ToolAnnotations(readOnlyHint=True, openWorldHint=False))
+def finhub_arena_state(name: str | None = None) -> dict:
+    """SIMULATED market (no real money). Order book depth, recent trades, mid-price history, the
+    leaderboard of bots and agents, recent news events, and (if name is given) your own account. The
+    true value is hidden; the informed bot knows it. Bots: market maker, noise, momentum, mean
+    reversion, informed. Use finhub_arena_order to trade and finhub_arena_advance to move time."""
+    st = _call("GET", "/sim/state", params={"history": 60})
+    if name:
+        st["your_account"] = _call("GET", f"/sim/account/{name}")
+    return st
+
+
+@server.tool(annotations=SIMULATED)
+def finhub_arena_order(name: str, side: Literal["buy", "sell"], qty: int, price: float | None = None) -> dict:
+    """SIMULATED market (no real money). Place an order under your participant name (letters, digits,
+    _ or -). Without price it is a market order; with price it is a limit order that rests if not
+    filled. Returns fills, average price, any resting order and your account (position, cash, P&L
+    marked to mid)."""
+    body = {"name": name, "side": side, "qty": qty}
+    if price is not None:
+        body["price"] = price
+    return _call("POST", "/sim/order", json=body)
+
+
+@server.tool(annotations=SIMULATED)
+def finhub_arena_cancel(name: str) -> dict:
+    """SIMULATED market. Cancel all your resting orders."""
+    return _call("POST", "/sim/cancel", json={"name": name})
+
+
+@server.tool(annotations=SIMULATED)
+def finhub_arena_advance(steps: int = 10) -> dict:
+    """SIMULATED market. Advance the clock by 1-2000 steps; the bots trade each step. Prices and the
+    hidden true value move as time passes, so check finhub_arena_state again afterwards."""
+    return _call("POST", "/sim/advance", json={"steps": steps})
 
 
 def main() -> None:

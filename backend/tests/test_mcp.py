@@ -83,7 +83,10 @@ def test_stdio_protocol_end_to_end():
         send({"jsonrpc": "2.0", "method": "notifications/initialized"})
         send({"jsonrpc": "2.0", "id": 2, "method": "tools/list"})
         tools = {t["name"]: t for t in recv(2)["result"]["tools"]}
-        assert {"finhub_quote", "finhub_history", "finhub_backtest", "finhub_portfolio_risk", "finhub_price_option", "finhub_watchlist"} <= set(tools)
+        assert {"finhub_quote", "finhub_history", "finhub_backtest", "finhub_portfolio_risk", "finhub_price_option", "finhub_watchlist",
+                "finhub_arena_state", "finhub_arena_order", "finhub_arena_cancel", "finhub_arena_advance"} <= set(tools)
+        assert tools["finhub_arena_order"]["annotations"]["readOnlyHint"] is False
+        assert "SIMULATED" in tools["finhub_arena_order"]["description"]
         assert tools["finhub_quote"]["annotations"]["readOnlyHint"] is True
         send({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "finhub_price_option", "arguments": {
             "option_type": "call", "spot": 100, "strike": 100, "days_to_expiry": 365, "volatility": 0.2, "rate": 0.05}}})
@@ -94,3 +97,16 @@ def test_stdio_protocol_end_to_end():
     finally:
         proc.stdin.close()
         proc.wait(timeout=10)
+
+
+def test_arena_tools_trade_through_the_app(monkeypatch):
+    from finhub_backend import sim
+
+    sim.reset_arena(9)
+    monkeypatch.setattr(mcp_server, "_client", lambda: TestClient(app))
+    fill = mcp_server.finhub_arena_order("claude", "buy", 50)
+    assert fill["filled"] == 50 and fill["account"]["position"] == 50
+    mcp_server.finhub_arena_advance(20)
+    st = mcp_server.finhub_arena_state("claude")
+    assert st["step"] == 70 and st["your_account"]["position"] == 50
+    assert any(r["name"] == "claude" for r in st["leaderboard"])

@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from finhub_backend import __version__, agent, backtest, engines, fundamentals, installer, market, risk, store
+from finhub_backend import __version__, agent, backtest, engines, fundamentals, installer, market, risk, sim, store
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -228,6 +228,77 @@ def run_backtest_endpoint(req: BacktestRequest):
         "bars": len(bars),
     }
     return result
+
+
+# --------------------------------------------------------------------------------------------------
+# Agent arena: a shared simulated market that AI agents (via MCP) and the user can trade in
+# --------------------------------------------------------------------------------------------------
+
+
+class SimOrder(BaseModel):
+    name: str
+    side: str
+    qty: int
+    price: float | None = None
+
+
+class SimSteps(BaseModel):
+    steps: int = Field(1, ge=1, le=2000)
+
+
+class SimScenario(BaseModel):
+    scenario: str
+
+
+class SimReset(BaseModel):
+    seed: int = Field(42, ge=0, le=2**31)
+
+
+class SimName(BaseModel):
+    name: str
+
+
+@app.get("/sim/state")
+def sim_state(history: int = Query(300, ge=1, le=4000), reveal: bool = False) -> dict:
+    return sim.arena().state(history, reveal)
+
+
+@app.post("/sim/order")
+def sim_order(o: SimOrder) -> dict:
+    try:
+        return sim.arena().order(o.name, o.side, o.qty, o.price)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/sim/cancel")
+def sim_cancel(n: SimName) -> dict:
+    return {"cancelled": sim.arena().cancel_all(n.name)}
+
+
+@app.get("/sim/account/{name}")
+def sim_account(name: str) -> dict:
+    return sim.arena().account_view(name)
+
+
+@app.post("/sim/advance")
+def sim_advance(s: SimSteps) -> dict:
+    a = sim.arena()
+    a.tick(s.steps)
+    return {"step": a.book.step}
+
+
+@app.post("/sim/scenario")
+def sim_scenario(s: SimScenario) -> dict:
+    try:
+        return {"event": sim.arena().trigger(s.scenario)}
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.post("/sim/reset")
+def sim_reset(r: SimReset) -> dict:
+    return {"step": sim.reset_arena(r.seed).book.step}
 
 
 # --------------------------------------------------------------------------------------------------

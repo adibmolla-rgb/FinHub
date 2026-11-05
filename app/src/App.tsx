@@ -11,6 +11,7 @@ import { NotesWorkspace } from './Notes'
 import { McpPanel } from './Mcp'
 import { FundamentalsWorkspace } from './Fundamentals'
 import { CompareWorkspace } from './quant/Compare'
+import { ArenaWorkspace } from './sim/Arena'
 import { SimWorkspace } from './sim/Sim'
 import { OptionsWorkspace } from './quant/OptionsLab'
 import { BacktestWorkspace, type BacktestPreset } from './quant/Backtest'
@@ -37,6 +38,7 @@ type Workspace =
   | { kind: 'mcp' }
   | { kind: 'fa'; symbol: string; nonce: number }
   | { kind: 'cmp'; symbols: string[]; nonce: number }
+  | { kind: 'arena' }
   | { kind: 'opt'; symbol?: string; nonce: number }
   | { kind: 'backtest'; preset: BacktestPreset; nonce: number }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; nonce: number }
@@ -231,6 +233,9 @@ export default function App() {
       case 'mcp':
         setWorkspace({ kind: 'mcp' })
         break
+      case 'arena':
+        setWorkspace({ kind: 'arena' })
+        break
       case 'cmp':
         setWorkspace({ kind: 'cmp', symbols: result.symbols, nonce: Date.now() })
         break
@@ -367,6 +372,8 @@ export default function App() {
         <OptionsWorkspace key={workspace.nonce} symbol={workspace.symbol} />
       ) : workspace.kind === 'notes' ? (
         <NotesWorkspace key={workspace.nonce} onRerun={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'arena' ? (
+        <ArenaWorkspace />
       ) : workspace.kind === 'cmp' ? (
         <CompareWorkspace key={workspace.nonce} symbols={workspace.symbols} />
       ) : workspace.kind === 'fa' ? (

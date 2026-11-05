@@ -19,6 +19,7 @@ export type CommandResult =
   | { kind: 'mcp'; message: string }
   | { kind: 'fa'; symbol: string; message: string }
   | { kind: 'cmp'; symbols: string[]; message: string }
+  | { kind: 'arena'; message: string }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; message: string }
   | { kind: 'backtest'; symbol?: string; strategy?: string; params?: number[]; message: string }
   | { kind: 'clear'; message: string }
@@ -47,11 +48,12 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'BACKTEST', usage: 'BACKTEST SPY sma 20 50', description: 'FinHub backtester: costs, next-bar fills, walk-forward, deflated Sharpe (also momentum 126, meanrev 20 2)', status: 'ready' },
   { name: 'RISK', usage: 'RISK SPY 60 TLT 30 GLD 10', description: 'Portfolio VaR/ES three ways, VaR backtest, correlations, risk contributions, optimal weights', status: 'ready' },
   { name: 'OPT', usage: 'OPT AAPL', description: 'Options lab: price three ways, Greeks, implied vol, strategy payoffs', status: 'ready' },
+  { name: 'ARENA', usage: 'ARENA', description: 'Shared simulated market where AI agents trade (via MCP); watch or join', status: 'ready' },
   { name: 'SIM', usage: 'SIM', description: 'Simulated exchange: trade against bots, trigger news and crashes', status: 'ready' },
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'LOG'] // WATCH is handled by the W command (it takes arguments)
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', 'ARENA', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^[A-Z0-9][A-Z0-9.\-^=]{0,14}$/
 
 function asRange(word: string | undefined): Range | undefined {
@@ -85,6 +87,7 @@ export function runCommand(input: string): CommandResult {
 
   if (word === 'SIM') return { kind: 'sim', message: 'Market simulator' }
   if (word === 'NOTES') return { kind: 'notes', message: 'Research history' }
+  if (word === 'ARENA') return { kind: 'arena', message: 'Agent arena' }
   if (word === 'RCPT') return { kind: 'rcpt', message: 'Receipts' }
   if (word === 'MCP') return { kind: 'mcp', message: 'Connect AI assistants' }
   if (word === 'CMP') {
