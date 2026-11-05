@@ -24,7 +24,7 @@ computers.
 | **Currencies (FX)** | One currency against another | EUR/USD |
 | **Commodities** | Physical goods, usually via futures | Oil, gold, wheat |
 | **Derivatives** | A contract whose value depends on something else | Options, futures, swaps |
-| **Funds / ETFs** | A basket of other assets in one ticker | SPY (the S&P 500) |
+| **Funds / ETFs** | A basket of other assets in one ticker | SPY (tracks the S&P 500) |
 
 An **index** (like the S&P 500, written ^GSPC) is a number summarising a basket of stocks. You can't
 buy an index directly, but you can buy an ETF that tracks it.
@@ -96,8 +96,9 @@ willing to buy or sell, and at what price.
 
 ## Matching
 
-The exchange's **matching engine** pairs orders by **price, then time**: the best price trades first,
-and among equal prices, whoever arrived first. That's why speed matters to some firms: being first in
+Most exchanges' **matching engines** pair orders by **price, then time**: the best price trades first,
+and among equal prices, whoever arrived first. (Some futures markets share fills among equal-priced
+orders pro rata instead.) That's why speed matters to some firms: being first in
 the queue at a price is valuable.
 
 Buying a lot at once "walks the book": after the 200 shares at 100.02 are gone, you pay 100.03 for the
@@ -208,13 +209,14 @@ some maths easier. For small moves they are almost equal to simple returns.
 Daily numbers are scaled to a year with about **252 trading days**:
 
 - Average return: daily mean × 252.
-- **Volatility** (standard deviation of returns): daily volatility × √252. Volatility grows with the
-  *square root* of time, because random ups and downs partly cancel.
+- **Volatility** (standard deviation of returns): daily volatility × √252. If daily returns are roughly
+  independent, volatility grows with the *square root* of time, because random ups and downs partly cancel.
 
 ## Measuring risk
 
-- **Volatility**: how much returns typically swing. 20% a year is roughly a typical single stock;
-  a broad index is often around 15%.
+- **Volatility**: how much returns typically swing. A large single stock is often 25–40% a year; a
+  broad index like the S&P 500 has averaged roughly 15–20%, because diversification cancels much of the
+  individual noise.
 - **Maximum drawdown**: the worst fall from a peak to a later low. It's what investors actually feel.
 - **Value at Risk (VaR)**: a loss you should only exceed on, say, 1 day in 100.
 
@@ -227,7 +229,7 @@ Sharpe = (average return − risk-free rate) / volatility      (both annualised)
 A Sharpe of 0.5 is typical for a stock index over the long run; 1 is good; above 2 for a simple
 daily strategy is so rare that you should suspect a bug or overfitting first.
 
-> Worked example: a strategy earns 0.04% a day on average with 1% daily volatility. Annual return ≈
+> Worked example (ignoring the risk-free rate): a strategy earns 0.04% a day on average with 1% daily volatility. Annual return ≈
 > 0.0004 × 252 = 10.1%. Annual volatility ≈ 0.01 × √252 = 15.9%. Sharpe ≈ 0.101 / 0.159 ≈ 0.63.
 `,
       quiz: [
@@ -436,7 +438,7 @@ use the numbers **as they were known at the time**, not later corrected versions
 - **Rates up → bond prices down.** A bond's fixed payments are worth less when new bonds pay more.
 - **Rates up → stock valuations down**, especially for companies whose profits are far in the future
   (future cash is discounted more heavily).
-- **Surprises matter, not levels.** Markets price in what they expect; prices move when the news
+- **Surprises matter more than levels.** Markets price in what they expect; prices move when the news
   differs from expectations.
 
 ## Discounting

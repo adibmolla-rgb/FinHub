@@ -140,8 +140,8 @@ A **random variable** is a number decided by chance: tomorrow's return, a die ro
 
 ## The Central Limit Theorem
 
-Add up many independent random effects and the total is approximately **normal**, whatever each effect
-looks like. That's why the normal distribution is everywhere, and why averages are predictable even when
+Add up many independent random effects (each with finite variance) and the total is approximately
+**normal**, whatever each effect looks like. That's why the normal distribution is everywhere, and why averages are predictable even when
 single outcomes aren't.
 
 ## Fat tails: where finance breaks the textbook
@@ -250,8 +250,9 @@ and the portfolio is **less risky than its parts**. That's diversification, in o
 
 ## Beyond
 
-- **Solving linear systems** and **matrix inverses** give optimal portfolios (Σ⁻¹μ is proportional to the
-  maximum-Sharpe portfolio when unconstrained).
+- **Solving linear systems** and **matrix inverses** give optimal portfolios: with μ the expected excess
+  returns, Σ⁻¹μ is proportional to the maximum-Sharpe portfolio when the only constraint is that weights
+  add up to 1.
 - **Eigenvalues and eigenvectors** find the main directions of variation (PCA), e.g. the "market factor".
 - **Regression** is linear algebra: β = (X'X)⁻¹X'y.
 `,
@@ -281,13 +282,14 @@ In finance, sensitivities are derivatives. The option **Greeks** are exactly thi
 | Greek | Derivative of option price with respect to |
 |---|---|
 | **Delta** | the underlying price |
-| **Gamma** | delta with respect to price (second derivative) |
+| **Gamma** | the underlying price, twice (how fast delta changes) |
 | **Vega** | volatility |
 | **Theta** | time |
 | **Rho** | interest rate |
 
 A **Taylor expansion** says a small change Δx moves f by about f'(x)Δx + ½f''(x)Δx². For options:
-P&L ≈ delta × move + ½ × gamma × move². That's how option traders think about risk.
+P&L ≈ delta × move + ½ × gamma × move² (ignoring time decay and volatility changes). That's how option
+traders think about risk.
 
 ## Integrals
 

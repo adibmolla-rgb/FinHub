@@ -35,7 +35,8 @@ Quant hiring is unusually test-driven. The good news: tests can be practised.
 ## Mental maths
 
 Trading firms test arithmetic under time pressure. Practise daily, ten minutes:
-- [Zetamac](https://arithmetic.zetamac.com) (default settings, 120 seconds). Many candidates aim for 50+.
+- [Zetamac](https://arithmetic.zetamac.com) (default settings: a two-minute round). Scores of roughly 40–60+ are commonly quoted as targets;
+  check what candidates for your target firms report.
 - Fractions ↔ percentages, quick multiplication (e.g. 47 × 23), estimating square roots.
 
 ## Talking through problems

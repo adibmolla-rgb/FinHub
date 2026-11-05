@@ -90,9 +90,10 @@ the trading floors in films.
 ## Where they work
 
 - **Proprietary trading firms** trade their own money, often as market makers. Examples: Jane Street,
-  Optiver, IMC, Citadel Securities, Hudson River Trading, Jump Trading, SIG.
+  Optiver, IMC, Citadel Securities, Hudson River Trading, Jump Trading, SIG, XTX Markets.
 - **Hedge funds** manage investors' money with systematic strategies. Examples: Two Sigma, D. E. Shaw,
-  Renaissance Technologies, G-Research, Man Group, Citadel.
+  Renaissance Technologies, Man Group, Citadel, Millennium. (Some firms blur the line: G-Research,
+  for example, does research for a firm that trades its own money.)
 - **Investment banks** have quant teams in trading, pricing and risk ("strats", "QR").
 - **Asset managers** run systematic and factor funds.
 - **Exchanges, data and fintech companies** need quant developers and data scientists too.

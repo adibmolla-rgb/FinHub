@@ -86,7 +86,7 @@ parity). Always look at how much the "optimal" weights change when you resample 
   compute it: **historical** (the 1% worst past day), **parametric** (assume a normal distribution),
   **Monte Carlo** (simulate).
 - **Expected Shortfall (ES)**: the *average* loss on those worst days. It sees how bad the tail is;
-  VaR doesn't. Regulators increasingly prefer ES.
+  VaR doesn't. Bank regulators (Basel's market-risk rules) have moved from 99% VaR to 97.5% ES.
 - **Backtesting VaR (Kupiec test)**: did breaches happen about as often as promised? Too many means the
   model understates risk.
 - **Risk contribution**: a holding's share of total risk. A 10% position in a volatile, correlated asset
@@ -157,7 +157,9 @@ Knowing *why* helps you judge whether an effect should persist.
 3. **Monte Carlo**: simulate many price paths, average the discounted payoffs. Flexible for complex products;
    report the **standard error** so you know how accurate it is.
 
-If all three agree, your code is probably right. That's exactly what OPT shows you.
+For a European option all three should agree (Monte Carlo within its standard error), so agreement is a
+strong check that your code is right. That's exactly what OPT shows you. Tick "American" and the tree
+prices early exercise too; for puts it can be worth noticeably more.
 
 ## Implied volatility
 
@@ -168,18 +170,19 @@ uncertainty. Options are quoted in it.
 ## The volatility smile
 
 If Black–Scholes were exactly right, implied volatility would be the same for every strike. In reality,
-out-of-the-money puts usually have higher implied volatility (a "skew" or "smile"): the market prices
+for stock indices, out-of-the-money puts usually have higher implied volatility (a "skew" or "smile"): the market prices
 crashes as more likely than a normal distribution would. Modelling the smile is a big part of
 derivatives quant work.
 
 ## Hedging and the Greeks
 
-A market maker who sells an option **delta-hedges** by holding delta shares, so small moves cancel. They
+A market maker who sells an option **delta-hedges** by trading shares to offset its delta (for example,
+buying delta shares against a short call), so small moves cancel. They
 remain exposed to **gamma** (delta changing) and **vega** (volatility changing). Option trading is largely
 trading volatility.
 
-> Exercise: in OPT, set a market price and read off implied volatility. Then change it by 0.50 and see how
-> much implied volatility moves (that ratio is 1/vega).
+> Exercise: in OPT, set a market price and read off implied volatility. Then raise the price by 0.50:
+> implied volatility rises by about 0.50 ÷ vega volatility points (OPT shows vega per volatility point).
 `,
       quiz: [
         { q: 'Implied volatility is…', options: ['Historical volatility of the stock', 'The volatility that makes the model price equal the market price', 'Always 20%', 'The option’s delta'], answer: 1, why: 'It’s backed out of the market price by inverting the pricing formula.' },

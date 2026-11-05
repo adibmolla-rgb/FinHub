@@ -23,13 +23,14 @@ export const coding: Track = {
 
 ## Install Python
 
-1. Install **Python 3.12+** from [python.org](https://www.python.org/downloads/) (tick "Add to PATH" on Windows).
+1. Install a recent **Python 3** (3.12 or newer) from [python.org](https://www.python.org/downloads/). On Windows, tick
+   "Add python.exe to PATH" if the installer offers it.
 2. Install an editor: [VS Code](https://code.visualstudio.com/) with the Python extension.
 3. Make a project folder and a **virtual environment** so each project has its own packages:
 
 ~~~bash
 mkdir quant-practice && cd quant-practice
-python -m venv .venv
+python -m venv .venv          # on macOS/Linux the command may be python3
 # Windows: .venv\\Scripts\\activate      macOS/Linux: source .venv/bin/activate
 pip install numpy pandas matplotlib jupyter yfinance
 ~~~
@@ -91,8 +92,8 @@ returns = []
 for i in range(1, len(closes)):
     r = closes[i] / closes[i - 1] - 1
     returns.append(r)
-    if r < -0.01:
-        print(f"Day {i}: big drop {r:.2%}")
+    if r < -0.005:                       # a fall of more than 0.5%
+        print(f"Day {i}: big drop {r:.2%}")  # prints days 2 and 4
 ~~~
 
 ## Functions
@@ -215,15 +216,22 @@ signal = (fast > slow).astype(float)   # 1 = want to be long, decided at each da
 
 ## Step 2: timing (where most backtests cheat)
 
-\`signal\` on day t uses day t's closing price. You can't trade at a price you only learn when it's
-already gone. So the earliest you can act is the **next** close, and the first return you earn is the
-one after that:
+\`signal\` on day t uses day t's closing price, so you only know it once that close has printed. The
+safe assumption is that you trade at the **next** close, and the first return you earn is the one after
+that:
 
 ~~~python
 ret = close.pct_change()               # ret on day t = close(t) / close(t-1) - 1
 position = signal.shift(2)             # decided at close t, traded at close t+1, earns ret from t+2
-# signal.shift(1) would mean trading at the same close you used to decide: look-ahead bias
 ~~~
+
+Compare the alternatives:
+
+- \`position = signal\` (no shift) earns day t's return using day t's close to decide: pure **look-ahead
+  bias**. It can turn a useless signal into a brilliant-looking one.
+- \`signal.shift(1)\` assumes you trade at the very close that produced the signal. A common shortcut
+  (you can get close by computing the signal just before the market closes), but slightly optimistic.
+- \`signal.shift(2)\` is the conservative version used here and in FinHub's BACKTEST.
 
 ## Step 3: costs
 
@@ -262,7 +270,7 @@ worse Sharpe after costs. That's a real, useful finding. Now:
    plus walk-forward testing and a deflated Sharpe ratio.
 `,
       quiz: [
-        { q: 'Your signal uses today’s close. Using position = signal.shift(1) on close-to-close returns means…', options: ['A realistic next-day trade', 'Trading at the very close you used to decide: look-ahead bias', 'Ignoring costs', 'Shorting'], answer: 1, why: 'shift(1) earns tomorrow’s return from today’s close, so you’d have to trade at the price that produced the signal.' },
+        { q: 'Your signal uses today’s close. Using position = signal (no shift) on close-to-close returns means…', options: ['A realistic next-day trade', 'Look-ahead bias: today’s return is earned using today’s close to decide', 'Ignoring costs', 'Shorting'], answer: 1, why: 'The return from yesterday’s close to today’s close has already happened by the time you know today’s close. No shift lets the signal see the result it is trading on.' },
         { q: 'You try 50 parameter pairs and report the best. The reported Sharpe is…', options: ['Unbiased', 'Probably too high', 'Probably too low', 'Exactly right if costs are included'], answer: 1, why: 'Picking the best of many noisy results inflates it (selection bias). Test it on data you didn’t use to choose it.' },
       ],
       tryIt: [{ command: 'BACKTEST SPY sma 50 200', label: 'Check your numbers: BACKTEST SPY sma 50 200' }],
@@ -386,8 +394,10 @@ time), **references** (\`const Order&\` avoids copying), **the standard library*
 
 ## A first project: an order book
 
-Keep bids in \`std::map<double, std::deque<Order>, std::greater<double>>\` (highest price first) and
-asks in \`std::map<double, std::deque<Order>>\` (lowest first). Implement add, cancel and matching with
+Store prices as whole numbers of **ticks** (e.g. cents), not doubles: 0.1 + 0.2 isn't exactly 0.3 in
+floating point, so two equal prices could land on different levels. Keep bids in
+\`std::map<long, std::deque<Order>, std::greater<long>>\` (highest price first) and asks in
+\`std::map<long, std::deque<Order>>\` (lowest first). Implement add, cancel and matching with
 price-time priority. Then write tests and measure how many orders per second it handles. This is the
 classic quant-developer portfolio project; FinHub's SIM engine follows the same rules.
 `,
@@ -412,10 +422,11 @@ Most firms keep data in databases. **SQL** gets it out. A few weeks of practice 
 Imagine a table \`prices(date, ticker, close)\`.
 
 ~~~sql
--- Latest close for each ticker
-SELECT ticker, MAX(date) AS last_date
-FROM prices
-GROUP BY ticker;
+-- Latest close for each ticker: find each ticker's last date, then join back for its close
+SELECT p.ticker, p.date, p.close
+FROM prices p
+JOIN (SELECT ticker, MAX(date) AS last_date FROM prices GROUP BY ticker) m
+  ON p.ticker = m.ticker AND p.date = m.last_date;
 
 -- Average close per ticker in 2024
 SELECT ticker, AVG(close) AS avg_close
@@ -453,6 +464,7 @@ Employers judge projects by whether they look like real engineering.
 git init
 git add .
 git commit -m "Moving-average backtest with costs"
+git branch -M main                 # name the branch main (older Git defaults to master)
 git remote add origin https://github.com/YOU/quant-practice.git
 git push -u origin main
 ~~~
