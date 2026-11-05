@@ -3,7 +3,8 @@
 **An open-source market research terminal for your desktop.** One keyboard-driven app for market
 data, fundamentals, macro data, a stock screener, a backtester, portfolio risk, an options lab, price
 alerts, an AI research agent, and a simulated exchange where you and AI agents trade against bots.
-Every number can show you where it came from.
+Every number can show you where it came from. A built-in course (`LEARN`) teaches quantitative finance
+from zero, with each lesson linked to the tool that demonstrates it.
 
 Free, open source (Apache 2.0), no account. Windows, macOS and Linux.
 
@@ -14,6 +15,7 @@ Free, open source (Apache 2.0), no account. Windows, macOS and Linux.
 | I want to… | Read |
 |---|---|
 | Install it | [docs/INSTALL.md](docs/INSTALL.md) |
+| Learn quant finance from scratch | Type `LEARN` in the app (or the web demo) |
 | Learn every command, with walkthroughs | [docs/USER_GUIDE.md](docs/USER_GUIDE.md) |
 | Use FinHub from Claude Desktop, Claude Code or another AI assistant | [docs/AI_ASSISTANTS.md](docs/AI_ASSISTANTS.md) |
 | Work on the code (people or Claude Code) | [CLAUDE.md](CLAUDE.md) |
@@ -48,13 +50,14 @@ Free, open source (Apache 2.0), no account. Windows, macOS and Linux.
   ~60 large caps, your watchlist, or tickers you type.
 - **Not code-signed yet.** Windows and macOS show a warning the first time you open it
   ([how to get past it](docs/INSTALL.md#the-security-warning)).
-- **Not a hosted website.** It runs on your computer. A small web demo (options lab and simulator
-  only) can be built and published separately.
+- **Not a hosted website.** It runs on your computer. A small web demo (course, options lab and
+  simulator) can be built and published separately.
 
 ## What it does
 
 | Command | What you get |
 |---|---|
+| `LEARN` | A course from zero: what quant is, markets and trading, the maths, Python/C++/SQL, quant methods, and how to get hired, with quizzes and a 12-month plan |
 | `AAPL` | Quote, candlestick chart (SMA, EMA, Bollinger, RSI), company profile and news |
 | `FA AAPL` | Income statement, balance sheet, cash flow and key ratios |
 | `MACRO GB` | OECD inflation, unemployment, interest rates and real GDP for a country |

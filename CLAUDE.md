@@ -25,6 +25,8 @@ app/                           Tauri 2 + React 19 + TypeScript (Vite)
   src/quant/                   options.ts, indicators.ts, compare.ts (pure maths, unit-tested) and screens.
   src/sim/                     SIM: engine.ts (order book), market.ts (bots), Sim.tsx; Arena.tsx (ARENA UI).
   src/demo.ts                  Web-demo mode flags (pnpm build:web).
+  src/learn/                   LEARN course: types.ts, parse.ts + markdown.tsx (Markdown subset), Learn.tsx,
+                               curriculum/*.ts (one Track per file), index.ts (TRACKS order).
 backend/src/finhub_backend/
   server.py                    All HTTP endpoints. Lifespan starts engine probes, data warm-up, alerts loop.
   receipts.py                  Quantity/Unit/Source. Unit-safe arithmetic; AS_REPORTED never converts.
@@ -59,7 +61,7 @@ cd engines/openbb && uv sync && uv run pytest -q      # 10 tests (network-free)
 
 # App
 cd app && pnpm install
-pnpm test        # vitest: 38 tests (maths, parser, file-name clash check)
+pnpm test        # vitest: 78 tests (maths, parser, course content, file-name clash check)
 pnpm lint
 pnpm build       # tsc + vite (also what CI's tauri build runs first)
 pnpm build:web   # static web demo into dist-web/
@@ -102,6 +104,11 @@ Release; `pages.yml` (manual) publishes the web demo.
 - **A command:** add a `CommandResult` variant and a `COMMANDS` row in `commands.ts`, handle it in
   `App.tsx` (`submit` switch + workspace render), add parser tests in `src/sim/engine.test.ts`, and add
   it to `docs/USER_GUIDE.md`.
+- **A course or lesson:** write a `Track` in `app/src/learn/curriculum/` and list it in `learn/index.ts`.
+  Lesson bodies are a Markdown subset in template strings: use `~~~` code fences and escape inline
+  backticks. Every `tryIt` command must parse (`learn.test.ts` checks this, plus quiz answer indexes,
+  unique ids and https links). `access: 'premium'` only shows a badge; there is no access control or
+  payment yet, so don't put paid content in the open-source repo.
 - **A data source:** add a fetcher in `engines/openbb/providers.py`, register it in `CHAINS`/`FETCHERS`,
   return raw values with the provider field name, and build receipts in the backend.
 - **An MCP tool:** add a function in `mcp_server.py` calling the HTTP API, with an accurate

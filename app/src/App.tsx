@@ -23,6 +23,7 @@ import { SimWorkspace } from './sim/Sim'
 import { OptionsWorkspace } from './quant/OptionsLab'
 import { BacktestWorkspace, type BacktestPreset } from './quant/Backtest'
 import { RiskWorkspace } from './quant/Risk'
+import { LearnWorkspace } from './learn/Learn'
 import type { AskKind } from './api'
 
 function useClock() {
@@ -46,6 +47,7 @@ type Workspace =
   | { kind: 'fa'; symbol: string; nonce: number }
   | { kind: 'cmp'; symbols: string[]; nonce: number }
   | { kind: 'arena' }
+  | { kind: 'learn' }
   | { kind: 'macro'; country: string; nonce: number }
   | { kind: 'alerts' }
   | { kind: 'screen' }
@@ -238,7 +240,7 @@ export default function App() {
     if (!input) return
     let result = runCommand(input)
     if (WEB_DEMO && !DEMO_COMMANDS.has(result.kind)) {
-      result = { kind: 'error', message: `${input.split(/\s+/)[0].toUpperCase()} needs the desktop app (live data and the local engine). The web demo runs OPT and SIM.` }
+      result = { kind: 'error', message: `${input.split(/\s+/)[0].toUpperCase()} needs the desktop app (live data and the local engine). The web demo runs LEARN, OPT and SIM.` }
     }
     if (WEB_DEMO && result.kind === 'opt') result = { ...result, symbol: undefined } // no live quotes in the demo
     setHistory((h) => [input, ...h].slice(0, 100))
@@ -291,6 +293,9 @@ export default function App() {
         break
       case 'macro':
         setWorkspace({ kind: 'macro', country: result.country, nonce: Date.now() })
+        break
+      case 'learn':
+        setWorkspace({ kind: 'learn' })
         break
       case 'arena':
         setWorkspace({ kind: 'arena' })
@@ -379,7 +384,7 @@ export default function App() {
             onKeyDown={onCommandKey}
             onFocus={() => setFocused(true)}
             onBlur={() => setTimeout(() => setFocused(false), 150)}
-            placeholder={WEB_DEMO ? 'Try OPT or SIM   (Ctrl+K)' : 'Ticker or command — AAPL, BACKTEST, RISK, OPT, SIM, ASK …, AI, HELP   (Ctrl+K)'}
+            placeholder={WEB_DEMO ? 'Try LEARN, OPT or SIM   (Ctrl+K)' : 'Ticker or command — AAPL, LEARN, BACKTEST, RISK, OPT, SIM, ASK …, AI, HELP   (Ctrl+K)'}
             spellCheck={false}
             autoComplete="off"
             autoFocus
@@ -450,6 +455,8 @@ export default function App() {
         <AlertsWorkspace version={alertsVersion} />
       ) : workspace.kind === 'macro' ? (
         <MacroWorkspace key={workspace.nonce} country={workspace.country} onReceipt={setReceipt} />
+      ) : workspace.kind === 'learn' ? (
+        <LearnWorkspace onRun={(cmd) => submit(cmd)} canRun={WEB_DEMO ? (cmd) => DEMO_COMMANDS.has(runCommand(cmd).kind) : undefined} />
       ) : workspace.kind === 'arena' ? (
         <ArenaWorkspace />
       ) : workspace.kind === 'cmp' ? (

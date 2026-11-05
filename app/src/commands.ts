@@ -20,6 +20,7 @@ export type CommandResult =
   | { kind: 'fa'; symbol: string; message: string }
   | { kind: 'cmp'; symbols: string[]; message: string }
   | { kind: 'arena'; message: string }
+  | { kind: 'learn'; message: string }
   | { kind: 'macro'; country: string; message: string }
   | { kind: 'screen'; message: string }
   | { kind: 'alerts'; add?: { symbol: string; kind: AlertKind; threshold: number }; message: string }
@@ -30,6 +31,7 @@ export type CommandResult =
   | { kind: 'error'; message: string }
 
 export const COMMANDS: { name: string; usage: string; description: string; status: 'ready' | 'planned' }[] = [
+  { name: 'LEARN', usage: 'LEARN', description: 'Course: learn quant finance from zero (markets, maths, coding, methods, getting a job)', status: 'ready' },
   { name: '<TICKER>', usage: 'AAPL', description: 'Quote, chart, profile and news for a ticker', status: 'ready' },
   { name: 'EQ', usage: 'EQ MSFT 5Y', description: 'Same, with a chart range (1M 3M 6M 1Y 5Y MAX)', status: 'ready' },
   { name: 'MACRO', usage: 'MACRO GB', description: 'OECD inflation, unemployment, interest rates and GDP for a country (default US)', status: 'ready' },
@@ -59,7 +61,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
 ]
 
 const PANELS: PanelId[] = ['SYS', 'HELP', 'LOG'] // WATCH is handled by the W command (it takes arguments)
-const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', 'ARENA', 'MACRO', 'ALERT', 'ALERTS', 'SCREEN', ...PANELS, ...COMMANDS.map((c) => c.name)])
+const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', 'ARENA', 'LEARN', 'COURSE', 'MACRO', 'ALERT', 'ALERTS', 'SCREEN', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^\^?[A-Z0-9][A-Z0-9.\-^=]{0,14}$/ // a leading ^ marks an index, e.g. ^GSPC
 
 function asRange(word: string | undefined): Range | undefined {
@@ -94,6 +96,7 @@ export function runCommand(input: string): CommandResult {
   if (word === 'SIM') return { kind: 'sim', message: 'Market simulator' }
   if (word === 'NOTES') return { kind: 'notes', message: 'Research history' }
   if (word === 'ARENA') return { kind: 'arena', message: 'Agent arena' }
+  if (word === 'LEARN' || word === 'COURSE') return { kind: 'learn', message: 'Learn quant finance' }
   if (word === 'ALERTS') return { kind: 'alerts', message: 'Alerts' }
   if (word === 'SCREEN') return { kind: 'screen', message: 'Screener' }
   if (word === 'ALERT') {

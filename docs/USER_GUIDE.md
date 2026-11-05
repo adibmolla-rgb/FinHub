@@ -60,12 +60,38 @@ Chart indicators: toggle `SMA20 SMA50 SMA200 EMA20 BB RSI` on the chart toolbar 
 
 | Command | What it does |
 |---|---|
+| `LEARN` | The course: learn quant finance from zero (see [Learning quant finance](#learning-quant-finance)). Also `COURSE`. |
 | `HOME` | Home screen: system status, watchlist, commands, activity log. |
 | `SYS` | Backend, engines (install buttons) and data-source health. |
 | `RCPT` | A worked example of a receipt. |
 | `REFRESH` | Reload the current view and re-check engines. |
 | `CLEAR` | Clear the activity log. |
 | `HELP` | Every command. |
+
+## Learning quant finance
+
+`LEARN` opens a self-paced course for complete beginners: 37 lessons in six tracks, roughly 18 hours of
+reading plus practice.
+
+1. **Start here**: what quantitative finance is, the jobs (trader, researcher, developer, risk), and how to
+   use the course.
+2. **Markets and trading**: what is traded, the order book, market makers, returns and risk, shorting and
+   leverage, options, company accounts, macro.
+3. **The maths**: from logs and sums through probability, distributions, statistics, linear algebra,
+   calculus, regression and random walks to Black–Scholes.
+4. **Coding**: Python from first principles, NumPy and pandas, an honest first backtest, algorithms, C++,
+   SQL, Git and testing.
+5. **Quant methods**: backtesting without fooling yourself, portfolios and risk, factors, option pricing,
+   market making, machine learning done carefully.
+6. **Getting into the industry**: what interviews test, projects worth building, competitions and
+   applications, and a 12-month plan from zero.
+
+Each lesson has a short quiz with explanations, buttons that run the matching FinHub command (for example
+`BACKTEST SPY sma 50 200` in the backtesting lesson), and links to free courses and standard books.
+Progress (✓) is saved on this computer only. In the web demo, lessons whose tools need live data mark
+their buttons "desktop app".
+
+The course is education, not financial advice.
 
 ## Receipts
 

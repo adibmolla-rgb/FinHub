@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+**New**
+- `LEARN` (also `COURSE`): a quant finance course from zero, in the app and the web demo. 37 lessons in
+  six tracks (start here, markets and trading, maths, coding, quant methods, getting into the industry),
+  quizzes with explanations, try-it buttons that run FinHub commands, resources, and progress saved
+  locally. Tracks carry an `access` flag (`free`/`premium`) for future paid courses; no payments yet.
+
+**Fixed**
+- The top-bar clock overflowed the screen on phones (web demo).
+
 ## 0.4.0
 
 **New**

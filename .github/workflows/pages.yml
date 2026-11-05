@@ -1,6 +1,6 @@
 name: Publish web demo
 
-# Publishes the web demo (OPT and SIM, running entirely in the browser) to GitHub Pages.
+# Publishes the web demo (LEARN, OPT and SIM, running entirely in the browser) to GitHub Pages.
 # One-time setup: repository Settings → Pages → Source: "GitHub Actions". Then run this workflow
 # from the Actions tab ("Run workflow").
 on:

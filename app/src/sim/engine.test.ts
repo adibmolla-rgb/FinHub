@@ -141,6 +141,8 @@ describe('command bar', () => {
     expect(runCommand('CMP A')).toMatchObject({ kind: 'error' })
     expect(runCommand('OPT msft')).toMatchObject({ kind: 'opt', symbol: 'MSFT' })
     expect(runCommand('ASK what moved oil?')).toMatchObject({ kind: 'agent', ask: 'ask', text: 'what moved oil?' })
+    expect(runCommand('learn')).toMatchObject({ kind: 'learn' })
+    expect(runCommand('COURSE')).toMatchObject({ kind: 'learn' })
   })
 })
 

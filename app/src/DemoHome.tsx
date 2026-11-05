@@ -11,6 +11,7 @@ export function DemoHome({ onRun }: { onRun: (command: string) => void }) {
             server, entirely in your browser:
           </p>
           <ul>
+            <li><button className="link" onClick={() => onRun('LEARN')}>LEARN</button>: a free course that teaches quantitative finance from zero. What quants do, how markets and trading work, the maths, Python and C++, backtesting, risk and options, and how to get a job in the industry, with quizzes and links into the tools below.</li>
             <li><button className="link" onClick={() => onRun('OPT')}>OPT</button>: options lab. Black–Scholes, binomial tree and Monte Carlo side by side, Greeks, implied volatility and a strategy builder with payoff diagrams.</li>
             <li><button className="link" onClick={() => onRun('SIM')}>SIM</button>: a simulated exchange. Trade against a market maker, noise, momentum, mean-reversion and informed bots; trigger news, a flash crash or a liquidity drain; see your profit split into spread earned and adverse selection.</li>
           </ul>
