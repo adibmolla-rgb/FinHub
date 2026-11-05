@@ -304,6 +304,8 @@ def walk_forward(spec: StrategySpec, closes: np.ndarray, allow_short: bool, cost
     return {
         "available": True,
         "trials": len(grid),
+        # Full-sample Sharpe for every combination tried: a robust edge is a plateau, not a lone spike.
+        "surface": [{"params": grid[i], "sharpe": sharpe(runs[i].returns)} for i in runs],
         "folds": chosen,
         "out_of_sample": metrics(oos_all),
         "trial_sharpes_daily": trial_sr_daily,

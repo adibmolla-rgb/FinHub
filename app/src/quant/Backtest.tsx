@@ -64,6 +64,43 @@ function MetricsTable({ m }: { m: BacktestResult['metrics'] }) {
   )
 }
 
+function sharpeColor(v: number) {
+  const a = Math.min(1, Math.abs(v) / 1.5) * 0.6
+  return v >= 0 ? `rgba(61,220,151,${a})` : `rgba(242,85,90,${a})`
+}
+
+/** Sharpe for every parameter combination tried: a robust result sits on a plateau, not a spike. */
+function Surface({ result }: { result: BacktestResult }) {
+  const wf = result.walk_forward
+  if (!wf.available || !wf.surface?.length) return null
+  const keys = Object.keys(wf.surface[0].params)
+  const chosen = (p: Record<string, number>) => keys.every((k) => p[k] === result.params[k])
+  if (keys.length === 1) {
+    const k = keys[0]
+    return (
+      <table className="surface"><tbody>
+        <tr><th>{k}</th>{wf.surface.map((c) => <td key={c.params[k]} className="muted">{c.params[k]}</td>)}</tr>
+        <tr><th>Sharpe</th>{wf.surface.map((c) => <td key={c.params[k]} className={chosen(c.params) ? 'surface__on' : ''} style={{ background: sharpeColor(c.sharpe) }}>{c.sharpe.toFixed(2)}</td>)}</tr>
+      </tbody></table>
+    )
+  }
+  const [rk, ck] = keys
+  const rows = [...new Set(wf.surface.map((c) => c.params[rk]))].sort((a, b) => a - b)
+  const cols = [...new Set(wf.surface.map((c) => c.params[ck]))].sort((a, b) => a - b)
+  const at = (r: number, c: number) => wf.surface.find((x) => x.params[rk] === r && x.params[ck] === c)
+  return (
+    <table className="surface"><tbody>
+      <tr><th>{rk} \ {ck}</th>{cols.map((c) => <th key={c}>{c}</th>)}</tr>
+      {rows.map((r) => (
+        <tr key={r}><th>{r}</th>{cols.map((c) => {
+          const cell = at(r, c)
+          return cell ? <td key={c} className={chosen(cell.params) ? 'surface__on' : ''} style={{ background: sharpeColor(cell.sharpe) }}>{cell.sharpe.toFixed(2)}</td> : <td key={c} className="muted">—</td>
+        })}</tr>
+      ))}
+    </tbody></table>
+  )
+}
+
 export type BacktestPreset = { symbol?: string; strategy?: string; params?: number[] }
 
 export function BacktestWorkspace({ preset }: { preset: BacktestPreset }) {
@@ -207,8 +244,9 @@ export function BacktestWorkspace({ preset }: { preset: BacktestPreset }) {
         ) : <p className="muted">—</p>}
       </Panel>
 
-      <Panel code="WF" title="Walk-forward folds" className="grid__btwf">
+      <Panel code="WF" title="Walk-forward folds and parameter sensitivity" className="grid__btwf">
         {wf?.available ? (
+          <div className="wfgrid">
           <table className="table">
             <thead><tr><th>Fold</th><th>Chosen on past data</th><th className="num">In-sample Sharpe</th><th className="num">Next-period Sharpe</th></tr></thead>
             <tbody>
@@ -222,6 +260,11 @@ export function BacktestWorkspace({ preset }: { preset: BacktestPreset }) {
               ))}
             </tbody>
           </table>
+          <div className="stack">
+            <span className="muted small">Full-sample Sharpe for all {wf.trials} combinations tried (yours outlined). A broad green area suggests a robust effect; one bright cell among red suggests luck.</span>
+            <Surface result={result!} />
+          </div>
+          </div>
         ) : <p className="muted">{wf && !wf.available ? wf.reason : 'Shown after a run.'}</p>}
       </Panel>
     </main>

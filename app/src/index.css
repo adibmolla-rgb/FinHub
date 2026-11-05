@@ -439,3 +439,10 @@ details summary { cursor: pointer; }
 .macro-val { font-size: 22px; font-weight: 700; }
 .spark { flex: 1; min-height: 150px; }
 .macro-note { grid-column: 1 / -1; }
+
+.wfgrid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; align-items: start; }
+.surface { border-collapse: collapse; font: 11.5px var(--mono); }
+.surface th { color: var(--muted); font-weight: 500; padding: 3px 8px; text-align: center; }
+.surface td { padding: 4px 8px; text-align: center; min-width: 46px; }
+.surface__on { outline: 2px solid var(--text); outline-offset: -2px; font-weight: 700; }
+@media (max-width: 1100px) { .wfgrid { grid-template-columns: 1fr; } }

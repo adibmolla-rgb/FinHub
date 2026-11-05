@@ -262,7 +262,7 @@ export type BacktestResult = {
   causality_check: boolean
   walk_forward:
     | { available: false; reason: string; trials: number }
-    | { available: true; trials: number; oos_start: string; out_of_sample: Metrics
+    | { available: true; trials: number; oos_start: string; out_of_sample: Metrics; surface: { params: Record<string, number>; sharpe: number }[]
         folds: { fold: number; params: Record<string, number>; in_sample_sharpe: number; out_of_sample_sharpe: number }[] }
   deflated_sharpe: { dsr: number; trials: number; sr0_annual: number; skew?: number; kurtosis?: number }
   warnings: string[]

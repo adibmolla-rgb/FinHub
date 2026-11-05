@@ -114,3 +114,10 @@ def test_rejects_bad_input():
         bt.run_backtest(dates(100), [100.0] * 100, "nope")
     with pytest.raises(ValueError):
         bt.run_backtest(dates(100), [100.0] * 100, "sma", {"fast": 50, "slow": 20})
+
+
+def test_walk_forward_reports_the_full_parameter_surface():
+    closes = gbm(2520, seed=8)
+    wf = bt.run_backtest(dates(2520), closes.tolist(), "momentum", {"lookback": 63})["walk_forward"]
+    assert [row["params"]["lookback"] for row in wf["surface"]] == [21, 63, 126, 189, 252]
+    assert all(isinstance(row["sharpe"], float) for row in wf["surface"])
