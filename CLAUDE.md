@@ -52,7 +52,7 @@ it runs them as subprocesses that exit when their stdin closes.
 
 ```bash
 # Backend
-cd backend && uv sync && uv run pytest -q            # 78 tests
+cd backend && uv sync && uv run pytest -q            # 82 tests
 uv run finhub-backend                                 # API on 127.0.0.1:8765
 uv run finhub-mcp                                     # MCP server (stdio)
 
@@ -98,6 +98,8 @@ Release; `pages.yml` (manual) publishes the web demo.
 9. **Missing data fails closed.** A failed quote never fires an alert; a screener row missing a
    filtered field is excluded; a ratio with a missing input is omitted; nothing is guessed.
 10. **Never fake data in the UI.** Tests and screenshots may use synthetic data, clearly labelled.
+11. **No worker during an engine install.** A package folder without its `__init__.py` yet imports as an
+    empty namespace package, and that process keeps it for life. `installer` holds the worker during `uv sync`.
 
 ## Adding things
 

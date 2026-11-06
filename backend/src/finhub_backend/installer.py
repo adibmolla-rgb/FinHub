@@ -14,7 +14,10 @@ import time
 from collections import deque
 from dataclasses import dataclass, field
 
-from finhub_backend import engines
+from finhub_backend import engines, market
+
+# Matches the UI's check for a missing engine (Ticker.tsx), which then points the user at SYS.
+_HOLD_REASON = "engine not installed yet: setup is still running"
 
 
 @dataclass
@@ -60,15 +63,33 @@ def install(engine_id: str) -> InstallState:
             return st
         st.state, st.error, st.started_at, st.finished_at = "running", None, time.time(), None
         st.log.clear()
+    if engine_id == "openbb":  # the only engine with a long-lived worker
+        market.worker().hold(_HOLD_REASON)
     threading.Thread(target=_run, args=(st,), daemon=True, name=f"install-{engine_id}").start()
     return st
 
 
 def _run(st: InstallState) -> None:
+    try:
+        synced = _sync(st)
+    finally:
+        # Files are in place, so the worker may start now. OpenBB's first import (the check below) takes
+        # minutes, and market data shouldn't wait for it.
+        if st.engine == "openbb":
+            market.worker().release()
+    if not synced:
+        return
+    st.log.append("Checking the engine imports (the first import can take a few minutes)…")
+    engines.statuses(refresh=True)
+    st.state, st.finished_at = "done", time.time()
+
+
+def _sync(st: InstallState) -> bool:
+    """Run uv sync. On failure, record why on the state and return False."""
     uv = uv_path()
     if not uv:
         st.state, st.error, st.finished_at = "failed", "uv not found (set FINHUB_UV or install uv)", time.time()
-        return
+        return False
     project = engines.engines_dir() / st.engine
     env = {**os.environ, "UV_PROJECT_ENVIRONMENT": str(engines.engine_env(st.engine))}
     cmd = [uv, "sync", "--frozen", "--no-dev", "--project", str(project)]
@@ -92,10 +113,8 @@ def _run(st: InstallState) -> None:
         code = proc.wait()
     except OSError as exc:
         st.state, st.error, st.finished_at = "failed", f"could not run uv: {exc}", time.time()
-        return
+        return False
     if code != 0:
         st.state, st.error, st.finished_at = "failed", f"uv sync exited with {code}", time.time()
-        return
-    st.log.append("Checking the engine imports (the first import can take a few minutes)…")
-    engines.statuses(refresh=True)
-    st.state, st.finished_at = "done", time.time()
+        return False
+    return True

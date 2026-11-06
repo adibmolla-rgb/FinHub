@@ -10,6 +10,9 @@
 
 **Fixed**
 - The top-bar clock overflowed the screen on phones (web demo).
+- On first launch, Yahoo could fail for the whole session with `module 'yfinance' has no attribute 'Ticker'`,
+  leaving quotes on the Cboe fallback until a restart. The data worker no longer runs while its engine is
+  being installed.
 
 ## 0.4.0
 

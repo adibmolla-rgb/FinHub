@@ -36,12 +36,29 @@ class EngineWorker:
         self._pending: dict[int, Future] = {}
         self._ids = itertools.count(1)
         self._lock = threading.Lock()
+        self._hold_reason: str | None = None
 
     @property
     def running(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
+    def hold(self, reason: str) -> None:
+        """Stop the worker and refuse to start it until release(): its environment is being rewritten.
+
+        A worker that imports a half-installed package keeps the broken module for its whole life (a
+        package folder with no __init__.py yet imports as an empty namespace package).
+        """
+        with self._lock:
+            self._hold_reason = reason
+        self.stop()
+
+    def release(self) -> None:
+        with self._lock:
+            self._hold_reason = None
+
     def _start(self) -> None:
+        if self._hold_reason:
+            raise WorkerUnavailable(self._hold_reason)
         if not self.python.exists():
             raise WorkerUnavailable(f"engine not installed ({self.python} missing)")
         self._proc = subprocess.Popen(
