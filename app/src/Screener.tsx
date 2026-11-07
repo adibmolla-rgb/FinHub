@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { compact, formatValue, screenApi, type Receipt, type ScreenRequest, type ScreenResult, type ScreenRow } from './api'
 import { Panel } from './components'
 import { CopyCsvButton } from './CopyCsv'
@@ -10,9 +10,9 @@ type SortKey = 'symbol' | 'price' | 'change_pct' | 'market_cap' | 'from_high_pct
 const pctOrUndef = (s: string) => (s.trim() === '' ? undefined : parseFloat(s) / 100)
 const numOrUndef = (s: string) => (s.trim() === '' ? undefined : parseFloat(s))
 
-export function ScreenerWorkspace({ onOpen, onReceipt }: { onOpen: (symbol: string) => void; onReceipt: (r: Receipt) => void }) {
-  const [universe, setUniverse] = useState<ScreenRequest['universe']>('large_caps')
-  const [custom, setCustom] = useState('')
+export function ScreenerWorkspace({ symbols, onOpen, onReceipt }: { symbols?: string[]; onOpen: (symbol: string) => void; onReceipt: (r: Receipt) => void }) {
+  const [universe, setUniverse] = useState<ScreenRequest['universe']>(symbols ? 'custom' : 'large_caps')
+  const [custom, setCustom] = useState(symbols?.join(' ') ?? '')
   const [f, setF] = useState({ minPrice: '', maxPrice: '', minChange: '', maxChange: '', minCapB: '', withinHigh: '', aboveLow: '' })
   const [sectors, setSectors] = useState<string[]>([])
   const [result, setResult] = useState<ScreenResult | null>(null)
@@ -40,6 +40,12 @@ export function ScreenerWorkspace({ onOpen, onReceipt }: { onOpen: (symbol: stri
       setRunning(false)
     }
   }
+
+  // Opened with a list of tickers (from FIND or SCREEN AAPL MSFT): show them straight away.
+  useEffect(() => {
+    if (symbols) void run()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const rows = [...(result?.matches ?? [])].sort((a, b) => {
     const av = a[sort.key], bv = b[sort.key]

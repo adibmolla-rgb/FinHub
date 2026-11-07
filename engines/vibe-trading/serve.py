@@ -17,16 +17,25 @@ import sys
 import threading
 
 
-def _exit_when_parent_goes() -> None:
+def _exit_when_parent_goes(pipe: int) -> None:
     try:
-        while sys.stdin.read(1024):
+        while os.read(pipe, 1024):
             pass
+    except OSError:
+        pass
     finally:
         os._exit(0)
 
 
 def main() -> int:
-    threading.Thread(target=_exit_when_parent_goes, daemon=True, name="parent-watch").start()
+    # Watch a private copy of the pipe and leave an empty stdin behind. On Windows, blocking on the real stdin
+    # hangs anything else that touches it: importing Vibe-Trading stuck while loading a compiled module, and
+    # never finished. It takes seconds otherwise. os.dup's copy isn't inherited by child processes either.
+    pipe = os.dup(sys.stdin.fileno())
+    null = os.open(os.devnull, os.O_RDONLY)
+    os.dup2(null, sys.stdin.fileno())
+    os.close(null)
+    threading.Thread(target=_exit_when_parent_goes, args=(pipe,), daemon=True, name="parent-watch").start()
     import api_server
 
     port = os.environ.get("FINHUB_AGENT_PORT", "8899")

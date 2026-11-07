@@ -410,6 +410,8 @@ def run_backtest(
         "deflated_sharpe": dsr,
         "warnings": warnings,
         "curve": curve,
+        # Every day, for statistics. The curve above is thinned for the chart, so it can't be used for those.
+        "daily": {"dates": dates[1:], "strategy": run.returns.tolist(), "buy_hold": bh.returns.tolist()},
     }
 
 

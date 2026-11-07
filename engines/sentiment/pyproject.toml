@@ -1,0 +1,9 @@
+[project]
+name = "finhub-engine-sentiment"
+version = "0.1.0"
+description = "Optional environment for reading the tone of headlines with finBERT. Large, so it's only installed on request."
+requires-python = ">=3.12,<3.14"
+dependencies = ["transformers>=5.0", "torch>=2.2"]
+
+[tool.uv]
+package = false

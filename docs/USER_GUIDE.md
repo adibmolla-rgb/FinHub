@@ -23,6 +23,9 @@ Contents: [Commands](#command-reference) · [Receipts](#receipts) · [Walkthroug
 | *range* | `6M` | Change the open chart's range. |
 | `FA` | `FA AAPL` | Income statement, balance sheet, cash flow (annual or quarterly), and key ratios: margins, revenue growth, ROE, ROA, debt/equity, free cash flow. |
 | `MACRO` | `MACRO GB` | OECD CPI inflation, unemployment, short and long interest rates, and real GDP, with 10-year charts. Countries by code (`US GB JP DE FR CA IT AU KR MX ES NL CH SE NO NZ IE PL TR BR ZA IN CN`) or name (`MACRO united kingdom`). |
+| `FACTORS` | `FACTORS`, `FACTORS EUROPE`, `FACTORS US 10` | Fama-French factor returns from Kenneth French's Data Library: market, size, value, profitability, investment and momentum, with each one's latest month, last 12 months, average a year, volatility and t-statistic. Regions: `US NA EUROPE JAPAN ASIA DEVELOPED EXUS EMERGING`. Monthly data. These are paper portfolios before trading costs. |
+| `COT` | `COT`, `COT GOLD`, `COT S&P 500`, `COT MICRO BITCOIN` | CFTC Commitments of Traders. With no market, an overview of 34 major markets. With one, net positions for large speculators, small speculators and commercials, their share of open interest, and a score against their own recent range. Reported weekly, so it isn't today's position. A search can match several contracts: check the name at the top. |
+| `FED` | `FED` | Effective federal funds rate and target range, SOFR, M1 and M2 with M2's yearly growth, professional forecasters' inflation expectations, and an approximate real rate. |
 | `OWN` | `OWN AAPL` | Insider trades from SEC Form 4, the largest institutional holders from 13F filings, and short interest with days to cover. Insider totals count only open-market or private trades in common stock over the last 90 days: grants, option exercises, gifts and tax withholding are listed but not counted. 13F and short interest data lag, so check their dates. |
 | `CHAIN` | `CHAIN AAPL`, `CHAIN AAPL 2027-01-15` | Live options chain for one expiration (by default the first a week or more out; pick another from the menu), a volatility smile, at-the-money implied vol and put/call ratios. Shows strikes within 25% of the price unless you choose **All strikes**. Quotes can be delayed. |
 | `CAL` | `CAL`, `CAL 14` | Earnings and economic events for the next 7 days, or 1 to 31. Filter earnings by name or your watchlist, and events by country. Economic figures are shown exactly as published. |
@@ -30,7 +33,8 @@ Contents: [Commands](#command-reference) · [Receipts](#receipts) · [Walkthroug
 | `ETF` | `ETF SPY` | An ETF's largest holdings and their weights. This is only part of the fund: the panel says how much of it the listed holdings cover. |
 | `CURVE` | `CURVE` | US Treasury par yields by maturity, compared with a month and a year earlier, and the 10-year minus 2-year and 10-year minus 3-month spreads. A negative spread means the curve is inverted. |
 | `CMP` | `CMP AAPL MSFT NVDA` | 2 to 8 tickers on one growth-of-1 chart (dividend-adjusted), with return, CAGR, volatility, Sharpe, max drawdown and correlations. |
-| `SCREEN` | `SCREEN` | Filter a universe (built-in ~60 large caps, your watchlist, or tickers you type) by price, day change, market cap, distance from the 52-week high/low, and sector. Click a column to sort. |
+| `FIND` | `FIND`, `FIND battery` | Search about 70,000 stocks and ETFs worldwide by name, ticker or what the business does, and filter by country, sector and size, using FinanceDatabase. It's a reference list, so sizes and descriptions can be out of date. The list downloads the first time, and again when a newer one is out. Sends results to `SCREEN` for live numbers. |
+| `SCREEN` | `SCREEN`, `SCREEN AAPL MSFT` | Filter a universe (built-in ~60 large caps, your watchlist, or tickers you type) by price, day change, market cap, distance from the 52-week high/low, and sector. Click a column to sort. |
 | `W` | `W NVDA`, `W -NVDA` | Add to / remove from the watchlist on the home screen. |
 | `ALERT` | `ALERT AAPL > 200`, `ALERT AAPL < 150`, `ALERT NVDA +5%`, `ALERT NVDA -5%` | One-shot alerts on a price level or the day's move. Checked every 2 minutes while FinHub is open; you get a banner and a desktop notification. `ALERTS` lists them. |
 
@@ -44,6 +48,15 @@ Chart indicators: toggle `SMA20 SMA50 SMA200 EMA20 BB RSI` on the chart toolbar 
 |---|---|---|
 | `BACKTEST` | `BACKTEST SPY sma 20 50`, `BACKTEST QQQ momentum 126`, `BACKTEST GLD meanrev 20 2` | FinHub's backtester. See [Testing a strategy](#testing-a-strategy-properly). |
 | `PORT` | `PORT`, `PORT BUY AAPL 10 150`, `PORT SELL AAPL 5 180 2026-03-01 fee=1.50`, `PORT SPLIT NVDA 10` | Your own record of trades, valued at live prices. See [Tracking your portfolio](#tracking-your-portfolio). |
+| `READ` | `READ AAPL`, `READ AAPL 10-Q`, `READ AAPL DEF 14A` | Read a company's latest filing of that form inside FinHub, section by section, and search it. `FILINGS` has a **Read** button for any filing. The first time, it asks for the name and email the SEC requires automated tools to declare. These stay on your computer and go only to the SEC. |
+| `OPTIM` | `OPTIM SPY 60 TLT 30 GLD 10`, `OPTIM SPY 60 TLT 40 5Y` | Test ways of choosing weights on data they haven't seen. See [Testing weights out of sample](#testing-weights-out-of-sample). |
+| `REPORT` | `REPORT AAPL`, `REPORT AAPL QQQ`, `REPORT AAPL QQQ MAX` | A performance report: return, volatility, Sharpe, Sortino, drawdowns, tail risk, returns by month, and alpha and beta against a benchmark (SPY unless you name one). `BACKTEST` and `PAPER` have a **Performance report** button too. Needs the agent engine, but no AI provider. |
+| `PAPER` | `PAPER`, `PAPER BUY AAPL 10`, `PAPER SELL AAPL 5` | Practice trading with real prices and fake money. See [Paper trading](#paper-trading). |
+| `ALPHA` | `ALPHA`, `ALPHA momentum` | A library of 281 published signals for US stocks, and tests of them on the S&P 500. See [Testing published signals](#testing-published-signals). |
+| `VOL` | `VOL SPY` | Volatility forecasts for 1, 5 and 21 days from a GARCH(1,1) model with fat tails, using arch. Each month for up to three years it's refitted on the past only and compared with what happened, and with simply assuming the last month carries on. When a shock barely fades, no long-run level is shown, because the formula becomes unreliable. |
+| `BOND` | `BOND 4.5 10`, `BOND 4.5 10 97` | Coupon in percent, years, and optionally a price per 100, using QuantLib. Gives yield to maturity, modified and Macaulay duration, convexity, DV01, and the next payments. Without a price, it's valued on today's Treasury curve. Coupons are twice a year. |
+| `MOOD` | `MOOD AAPL` | The tone of the latest headlines (positive, neutral or negative) with finBERT, on your computer. Optional: install it in `SYS` (about 1.1 GB), and the first run downloads the model (about 420 MB). It reads tone only, and can be fooled by a headline about something else, so don't treat it as a trading signal. The model is licensed for non-commercial use. |
+| `QLIB` | `QLIB` | Microsoft Qlib's workflow on the built-in large caps: 158 price and volume features, a LightGBM model, a final test on the last three years. Optional: install it in `SYS` (about 800 MB). Runs in the background and is saved. Today's large caps are survivors, which flatters the result, and it says so. Press Start to run it. |
 | `RISK` | `RISK SPY 60 TLT 30 GLD 10` | Portfolio risk (ticker then weight; weights are normalised). See [Measuring portfolio risk](#measuring-portfolio-risk). |
 | `OPT` | `OPT`, `OPT AAPL` | Options lab; with a ticker it starts from the live price. See [Pricing options](#pricing-options-and-strategies). |
 
@@ -51,6 +64,8 @@ Chart indicators: toggle `SMA20 SMA50 SMA200 EMA20 BB RSI` on the chart toolbar 
 
 | Command | Example | What it does |
 |---|---|---|
+| `AGENTS` | `AGENTS`, `AGENTS TSLA` | TradingAgents: market, news and fundamentals analysts, a bull and bear debate, a trader and a risk team write up one stock, using the provider set with `AI`. Optional: install it in `SYS` (about 200 MB). It never starts until you press Start, since it uses far more of your provider than `ASK`, and closing FinHub stops it. It writes a report and can't place orders. The text is AI-written, so its figures have no receipts. |
+| `SWARM` | `SWARM`, `SWARM investment_committee TSLA` | A team of AI agents works on a question together. See [Teams of agents](#teams-of-agents). |
 | `AI` | `AI` | Choose the agent's model: Claude, OpenAI (API key) or Ollama (free, local). |
 | `ASK` | `ASK is NVDA momentum still working after costs?` | Research question. The **trace** panel shows every tool the agent uses (data fetches, code, backtests) with inputs and results; the answer streams in beside it. |
 | `BT` | `BT SPY 20/50 day moving-average crossover` | The agent writes and runs a backtest, instructed to use next-bar fills, costs and a buy-and-hold comparison. Use `BACKTEST` for FinHub's own checked engine. |
@@ -159,6 +174,51 @@ to show you that rather than hide it. **Copy metrics** / **Copy equity curve** p
 - **Alternative weights**: minimum-variance and maximum-Sharpe portfolios with **±** error bars from
   resampling history. Large ± means the "optimal" weights are mostly noise.
 
+### Testing weights out of sample
+
+`OPTIM` asks whether a way of choosing weights holds up on data it hasn't seen, which `RISK`'s optimal weights can't tell you. It needs the agent engine from `SYS`, but no AI provider.
+
+Each method chooses weights using the past year and holds them for the next quarter, over and over. Only the held quarters count. Your own weights are tested over the same days, so you can see whether any method beat them. Open it from `RISK` with **Test these weights out of sample**, or type `OPTIM SPY 60 TLT 30 GLD 10`.
+
+Results are before trading costs and shift with the period, so a small lead means little. Maximum Sharpe can't be tested over a stretch where every asset had a negative expected return, and FinHub says so when that happens.
+
+### Paper trading
+
+`PAPER` is practice with real prices and fake money. It has no broker connection. It's different from `SIM`, which is a made-up market, and `PORT`, which records trades you made elsewhere.
+
+1. Install the agent engine from `SYS`. Paper trading runs on it, but it doesn't need an AI provider.
+2. Type `PAPER` and create an account with some starting cash.
+3. Place an order in the panel. `PAPER BUY AAPL 10` fills in the form, and **Place order** sends it.
+4. Come back later. Opening the account fills any orders that are due and values it.
+
+Orders fill at the closing price of the first session still ahead when you place them: today's close during US trading hours, otherwise the next session's. So you can't buy at a price you've already seen. They settle from half an hour after the close.
+
+For now, accounts are US stocks in whole shares, using market orders. Commission follows a typical US broker, at $0.0049 a share with a $0.99 minimum. A sale of more than you hold, or a purchase you can't afford, is refused and shown under **Trades**. Accounts can't be deleted yet.
+
+### Testing published signals
+
+`ALPHA` lists 281 published ways of predicting US stock returns, from academic papers to industry libraries. It doesn't use your AI provider.
+
+1. Type `ALPHA`, or `ALPHA momentum` for one theme. Click **Details** to read how a signal works.
+2. Tick at least two signals and click **Compare** for a full table. **Test the whole library** reports how many signals still work and the best five.
+3. For a deeper look at one signal, click **Details**, then **Analyse this signal in depth**. It shows how the signal does over 1, 5 and 21 days, how returns climb across five groups of stocks, and how much of the portfolio it would trade.
+4. A test downloads about 500 stocks and usually takes 5 to 10 minutes the first time for each period. You can leave the screen, and the result is saved under **Saved tests**. Closing FinHub stops a running test.
+
+IC is the correlation between a signal's ranking of stocks and their next returns. IR is the average IC divided by how much it varies. They measure prediction before trading costs, not profit.
+
+Read the warning on every result. The test uses today's S&P 500 members, so companies that collapsed and left the index are missing, and results look better than they really were. Some academic signals are price-only stand-ins for the original, as their notes say.
+
+### Teams of agents
+
+`SWARM` runs one of Vibe-Trading's 30 teams: several AI agents with different jobs, such as a bull researcher, a bear researcher, a risk reviewer and a portfolio manager, who pass their work along and finish with one report.
+
+1. Set up `AI` first, and install the agent engine from `SYS`.
+2. Type `SWARM`, pick a team and answer its questions. `SWARM investment_committee TSLA` picks the team and fills in the first answer.
+3. Click **Start team**. Nothing runs before that, because a team uses far more of your AI provider than `ASK`. On a paid key it costs more, and on a small local model it can take a very long time or fail.
+4. Watch each agent's progress, and read the report at the end. You can leave and come back from **Recent runs**, but closing FinHub stops a running team.
+
+Check what a team tells you: it's AI-written research, not advice.
+
 ### Tracking your portfolio
 
 `PORT` is a record you keep yourself. It has no broker connection and can't place orders.
@@ -233,6 +293,6 @@ comes from SEC filings, and implied volatility only when the provider supplies i
 
 - Everything works from the keyboard; the mouse is optional.
 - **Copy CSV** buttons appear on backtests, statements, comparisons and the screener.
-- Your watchlist, alerts, portfolio, AI settings and agent history live in your FinHub data folder
+- Your watchlist, alerts, portfolio, paper accounts, signal tests, AI settings and agent history live in your FinHub data folder
   ([where](INSTALL.md#where-finhub-keeps-its-files)).
 - If a panel shows "Couldn't load…", the table under it lists every provider tried and why it failed.

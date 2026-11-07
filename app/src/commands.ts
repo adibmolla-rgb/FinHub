@@ -26,8 +26,20 @@ export type CommandResult =
   | { kind: 'learn'; message: string }
   | { kind: 'macro'; country: string; message: string }
   | { kind: 'research'; view: ResearchView; message: string }
+  | { kind: 'swarm'; preset?: string; value?: string; message: string }
+  | { kind: 'paper'; preset?: { side: 'buy' | 'sell'; symbol: string; quantity: number }; message: string }
+  | { kind: 'alpha'; theme?: string; message: string }
+  | { kind: 'vol'; symbol: string; message: string }
+  | { kind: 'bond'; coupon: number; years: number; price?: number; message: string }
+  | { kind: 'find'; query?: string; message: string }
+  | { kind: 'mood'; symbol: string; message: string }
+  | { kind: 'agents'; symbol?: string; message: string }
+  | { kind: 'qlib'; message: string }
+  | { kind: 'read'; symbol: string; form: string; accession?: string; message: string }
+  | { kind: 'optim'; holdings: { symbol: string; weight: number }[]; range: string; message: string }
+  | { kind: 'report'; symbol: string; benchmark?: string; range: string; message: string }
   | { kind: 'portfolio'; add?: PortfolioEntry; message: string }
-  | { kind: 'screen'; message: string }
+  | { kind: 'screen'; symbols?: string[]; message: string }
   | { kind: 'alerts'; add?: { symbol: string; kind: AlertKind; threshold: number }; message: string }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; message: string }
   | { kind: 'backtest'; symbol?: string; strategy?: string; params?: number[]; message: string }
@@ -45,9 +57,23 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'CHAIN', usage: 'CHAIN AAPL', description: 'Live options chain and volatility smile; add a date for one expiration', status: 'ready' },
   { name: 'CAL', usage: 'CAL 14', description: 'Upcoming earnings and economic events (next 7 days, or up to 31)', status: 'ready' },
   { name: 'FILINGS', usage: 'FILINGS AAPL', description: 'Latest SEC filings with links to the documents', status: 'ready' },
+  { name: 'READ', usage: 'READ AAPL 10-Q', description: 'Read an SEC filing inside FinHub, section by section, and search it', status: 'ready' },
   { name: 'ETF', usage: 'ETF SPY', description: 'An ETF’s largest holdings and their weights', status: 'ready' },
   { name: 'CURVE', usage: 'CURVE', description: 'US Treasury yield curve, with spreads and comparisons a month and a year back', status: 'ready' },
+  { name: 'PAPER', usage: 'PAPER BUY AAPL 10', description: 'Practice trading with real prices and fake money; orders fill at the next close', status: 'ready' },
+  { name: 'ALPHA', usage: 'ALPHA momentum', description: 'Library of 281 published signals: read them and test which still predict the S&P 500', status: 'ready' },
+  { name: 'OPTIM', usage: 'OPTIM SPY 60 TLT 30 GLD 10', description: 'Test ways of choosing weights on data they haven\u2019t seen, against your own', status: 'ready' },
+  { name: 'REPORT', usage: 'REPORT AAPL', description: 'Performance report: Sharpe, drawdowns, monthly returns, alpha and beta against a benchmark', status: 'ready' },
+  { name: 'FACTORS', usage: 'FACTORS EUROPE 10', description: 'Fama-French factor returns: market, size, value, profitability, investment, momentum', status: 'ready' },
+  { name: 'COT', usage: 'COT GOLD', description: 'CFTC Commitments of Traders: who holds futures positions, for 34 major markets or one', status: 'ready' },
+  { name: 'FED', usage: 'FED', description: 'Fed funds rate and target, SOFR, money supply, inflation expectations and the real rate', status: 'ready' },
   { name: 'SCREEN', usage: 'SCREEN', description: 'Screen large caps, your watchlist or any tickers by price, move, size and 52-week range', status: 'ready' },
+  { name: 'FIND', usage: 'FIND battery', description: 'Search about 70,000 stocks and ETFs worldwide by name, business, country, sector and size', status: 'ready' },
+  { name: 'VOL', usage: 'VOL SPY', description: 'Forecast volatility with a GARCH model, and check whether it beat a simple guess', status: 'ready' },
+  { name: 'BOND', usage: 'BOND 4.5 10', description: 'Value a bond (coupon %, years, optional price): yield, duration, convexity, value on the Treasury curve', status: 'ready' },
+  { name: 'MOOD', usage: 'MOOD AAPL', description: 'Read the tone of the latest headlines with finBERT on this computer (optional install in SYS)', status: 'ready' },
+  { name: 'QLIB', usage: 'QLIB', description: 'Train Microsoft Qlib\u2019s machine learning workflow on large caps and test it on later years (optional install in SYS)', status: 'ready' },
+  { name: 'AGENTS', usage: 'AGENTS TSLA', description: 'TradingAgents: AI analysts, researchers, a trader and a risk team write up one stock (optional install in SYS; asks before starting)', status: 'ready' },
   { name: 'CMP', usage: 'CMP AAPL MSFT NVDA', description: 'Compare performance, risk and correlation of up to 8 tickers', status: 'ready' },
   { name: 'FA', usage: 'FA AAPL', description: 'Financial statements and key ratios, each ratio with a receipt', status: 'ready' },
   { name: 'RANGE', usage: '6M', description: 'Change the chart range of the open ticker', status: 'ready' },
@@ -63,6 +89,7 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'ASK', usage: 'ASK is NVDA momentum still working after costs?', description: 'Reasoning agent with a visible trace of every tool it uses', status: 'ready' },
   { name: 'BT', usage: 'BT SPY 20/50 day moving-average crossover', description: 'Agent backtest with costs, buy-and-hold comparison and validation warnings', status: 'ready' },
   { name: 'DEBATE', usage: 'DEBATE TSLA', description: 'Bull case, bear case and a neutral judge', status: 'ready' },
+  { name: 'SWARM', usage: 'SWARM investment_committee TSLA', description: 'A team of AI agents works on a question together; choose from 30 teams (asks before it starts)', status: 'ready' },
   { name: 'MCP', usage: 'MCP', description: 'Use FinHub from Claude Desktop, Claude Code or other AI assistants', status: 'ready' },
   { name: 'AI', usage: 'AI', description: 'Choose the AI provider (Claude, OpenAI or local Ollama) and key', status: 'ready' },
   { name: 'BACKTEST', usage: 'BACKTEST SPY sma 20 50', description: 'FinHub backtester: costs, next-bar fills, walk-forward, deflated Sharpe (also momentum 126, meanrev 20 2)', status: 'ready' },
@@ -72,6 +99,8 @@ export const COMMANDS: { name: string; usage: string; description: string; statu
   { name: 'SIM', usage: 'SIM', description: 'Simulated exchange: trade against bots, trigger news and crashes', status: 'ready' },
 ]
 
+export const ALPHA_THEMES = ['momentum', 'reversal', 'volume', 'volatility', 'quality', 'value', 'liquidity', 'microstructure', 'sentiment', 'growth', 'leverage']
+export const FACTOR_REGIONS = ['US', 'NA', 'EUROPE', 'JAPAN', 'ASIA', 'DEVELOPED', 'EXUS', 'EMERGING']
 const PANELS: PanelId[] = ['SYS', 'HELP', 'LOG'] // WATCH is handled by the W command (it takes arguments)
 const RESERVED = new Set(['HOME', 'CLEAR', 'REFRESH', 'EQ', 'RANGE', 'AI', 'SETTINGS', 'SIM', 'OPT', 'BACKTEST', 'RISK', 'W', 'WATCH', 'NOTES', 'RCPT', 'MCP', 'FA', 'CMP', 'ARENA', 'LEARN', 'COURSE', 'MACRO', 'ALERT', 'ALERTS', 'SCREEN', ...PANELS, ...COMMANDS.map((c) => c.name)])
 const SYMBOL = /^\^?[A-Z0-9][A-Z0-9.\-^=]{0,14}$/ // a leading ^ marks an index, e.g. ^GSPC
@@ -110,7 +139,33 @@ export function runCommand(input: string): CommandResult {
   if (word === 'ARENA') return { kind: 'arena', message: 'Agent arena' }
   if (word === 'LEARN' || word === 'COURSE') return { kind: 'learn', message: 'Learn quant finance' }
   if (word === 'ALERTS') return { kind: 'alerts', message: 'Alerts' }
-  if (word === 'SCREEN') return { kind: 'screen', message: 'Screener' }
+  if (word === 'SCREEN') {
+    const symbols = words.slice(1).map((w) => w.toUpperCase())
+    if (symbols.length > 100 || !symbols.every((s) => SYMBOL.test(s))) return { kind: 'error', message: 'Usage: SCREEN, or SCREEN with up to 100 tickers' }
+    return { kind: 'screen', symbols: symbols.length ? symbols : undefined, message: 'Screener' }
+  }
+  if (word === 'FIND') {
+    const query = text.trim().slice(word.length).trim()
+    if (query.length > 80) return { kind: 'error', message: 'Usage: FIND with up to 80 characters, such as FIND battery' }
+    return { kind: 'find', query: query || undefined, message: query ? `Finding ${query}` : 'Find stocks and ETFs' }
+  }
+  if (word === 'VOL' || word === 'MOOD') {
+    const symbol = words[1]?.toUpperCase()
+    if (words.length !== 2 || !SYMBOL.test(symbol)) return { kind: 'error', message: `Usage: ${word} ${word === 'VOL' ? 'SPY' : 'AAPL'}` }
+    return word === 'VOL' ? { kind: 'vol', symbol, message: `Volatility of ${symbol}` } : { kind: 'mood', symbol, message: `Tone of ${symbol}\u2019s headlines` }
+  }
+  if (word === 'BOND') {
+    const [coupon, years, price] = words.slice(1).map(Number)
+    const fine = words.length >= 3 && words.length <= 4 && Number.isFinite(coupon) && Number.isFinite(years) && (price === undefined || Number.isFinite(price))
+    if (!fine) return { kind: 'error', message: 'Usage: BOND coupon% years [price per 100], such as BOND 4.5 10 or BOND 4.5 10 97' }
+    return { kind: 'bond', coupon: coupon / 100, years, price, message: `${coupon}% ${years}-year bond` }
+  }
+  if (word === 'QLIB') return { kind: 'qlib', message: 'Machine learning workflow' }
+  if (word === 'AGENTS') {
+    const symbol = words[1]?.toUpperCase()
+    if (words.length > 2 || (symbol && !SYMBOL.test(symbol))) return { kind: 'error', message: 'Usage: AGENTS, or AGENTS TSLA' }
+    return { kind: 'agents', symbol, message: symbol ? `Trading agents on ${symbol}` : 'Trading agents' }
+  }
   if (word === 'ALERT') {
     const m = text.match(/^ALERT\s+([A-Za-z0-9.\-^=]{1,15})\s*(>|<|\+|-)\s*([0-9]*\.?[0-9]+)\s*(%)?\s*$/i)
     if (!m) return { kind: 'error', message: 'Usage: ALERT AAPL > 200, ALERT AAPL < 150, ALERT NVDA +5% or ALERT NVDA -5%' }
@@ -169,6 +224,69 @@ export function runCommand(input: string): CommandResult {
     return { kind: 'research', view: { view: 'cal', days }, message: `Calendar: next ${days} days` }
   }
   if (word === 'CURVE') return { kind: 'research', view: { view: 'curve' }, message: 'US Treasury yield curve' }
+  if (word === 'FED') return { kind: 'research', view: { view: 'fed' }, message: 'Federal Reserve' }
+  if (word === 'FACTORS') {
+    const args = words.slice(1).map((w) => w.toUpperCase())
+    const years = args.find((a) => /^\d+$/.test(a))
+    const region = args.find((a) => !/^\d+$/.test(a))
+    if (region && !FACTOR_REGIONS.includes(region)) return { kind: 'error', message: `Usage: FACTORS, or with a region: ${FACTOR_REGIONS.join(', ')}` }
+    if (years && (Number(years) < 1 || Number(years) > 70)) return { kind: 'error', message: 'Usage: FACTORS US 10 (years from 1 to 70)' }
+    return { kind: 'research', view: { view: 'factors', region: region ?? 'US', years: years ? Number(years) : 30 }, message: `Factors: ${region ?? 'US'}` }
+  }
+  if (word === 'COT') {
+    const market = text.slice(words[0].length).trim()
+    if (market && !/^[A-Za-z0-9&/.,()$%+#:_\- ]{1,60}$/.test(market)) return { kind: 'error', message: 'Usage: COT, or COT GOLD' }
+    return { kind: 'research', view: { view: 'cot', market: market || undefined }, message: market ? `Positioning: ${market}` : 'Positioning: major markets' }
+  }
+  if (word === 'READ') {
+    const symbol = words[1]?.toUpperCase()
+    const rest = words.slice(2).map((w) => w.toUpperCase())
+    const accession = rest.length && /^\d{10}-\d{2}-\d{6}$/.test(rest[rest.length - 1]) ? rest.pop() : undefined
+    const form = rest.join(' ') || '10-K'
+    if (!symbol || !SYMBOL.test(symbol) || !/^[0-9A-Z/\- ]{1,12}$/.test(form)) return { kind: 'error', message: 'Usage: READ AAPL, or READ AAPL 10-Q' }
+    return { kind: 'read', symbol, form, accession, message: `Reading ${symbol} ${form}` }
+  }
+  if (word === 'OPTIM') {
+    const rest = words.slice(1)
+    const range = rest.length % 2 === 1 ? rest.pop()!.toUpperCase() : 'MAX'
+    if (range !== '5Y' && range !== 'MAX') return { kind: 'error', message: 'Usage: OPTIM SPY 60 TLT 30 GLD 10, optionally ending in 5Y or MAX' }
+    const holdings: { symbol: string; weight: number }[] = []
+    for (let i = 0; i < rest.length; i += 2) {
+      const symbol = rest[i].toUpperCase()
+      const weight = parseFloat(rest[i + 1])
+      if (!SYMBOL.test(symbol) || !(weight > 0)) return { kind: 'error', message: 'Usage: OPTIM SPY 60 TLT 30 GLD 10 (ticker then weight)' }
+      holdings.push({ symbol, weight })
+    }
+    return { kind: 'optim', holdings, range, message: holdings.length ? `Testing weights: ${holdings.map((h) => h.symbol).join(', ')}` : 'Optimiser test' }
+  }
+  if (word === 'REPORT') {
+    const args = words.slice(1).map((w) => w.toUpperCase())
+    const range = ['1Y', '5Y', 'MAX'].includes(args[args.length - 1]) ? args.pop()! : '5Y'
+    const [symbol, benchmark] = args
+    if (!symbol || !SYMBOL.test(symbol) || args.length > 2 || (benchmark && !SYMBOL.test(benchmark))) return { kind: 'error', message: 'Usage: REPORT AAPL, REPORT AAPL QQQ, or REPORT AAPL QQQ MAX' }
+    return { kind: 'report', symbol, benchmark: benchmark ?? (symbol === 'SPY' ? undefined : 'SPY'), range, message: `Report: ${symbol}` }
+  }
+  if (word === 'PAPER') {
+    if (words.length === 1) return { kind: 'paper', message: 'Paper trading' }
+    const side = words[1].toLowerCase()
+    const symbol = words[2]?.toUpperCase()
+    const quantity = Number(words[3])
+    if ((side !== 'buy' && side !== 'sell') || !symbol || !/^[A-Z][A-Z0-9-]{0,9}$/.test(symbol) || !Number.isInteger(quantity) || quantity < 1 || words.length > 4) {
+      return { kind: 'error', message: 'Usage: PAPER, or PAPER BUY AAPL 10 (whole shares, US tickers)' }
+    }
+    return { kind: 'paper', preset: { side, symbol, quantity }, message: `Paper order ready: ${side} ${quantity} ${symbol}. Press Place order to send it.` }
+  }
+  if (word === 'ALPHA') {
+    const theme = words[1]?.toLowerCase()
+    if (words.length > 2 || (theme && !ALPHA_THEMES.includes(theme))) return { kind: 'error', message: `Usage: ALPHA, or ALPHA with a theme: ${ALPHA_THEMES.join(', ')}` }
+    return { kind: 'alpha', theme, message: theme ? `Signals: ${theme}` : 'Signal library' }
+  }
+  if (word === 'SWARM') {
+    const preset = words[1]?.toLowerCase()
+    if (preset && !/^[a-z0-9_]{1,60}$/.test(preset)) return { kind: 'error', message: 'Usage: SWARM, or SWARM investment_committee TSLA' }
+    const value = words.slice(2).join(' ') || undefined
+    return { kind: 'swarm', preset, value, message: preset ? `Team: ${preset}` : 'Teams of AI agents' }
+  }
   if (word === 'RCPT') return { kind: 'rcpt', message: 'Receipts' }
   if (word === 'MCP') return { kind: 'mcp', message: 'Connect AI assistants' }
   if (word === 'CMP') {

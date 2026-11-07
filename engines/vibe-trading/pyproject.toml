@@ -3,7 +3,7 @@ name = "finhub-engine-vibe-trading"
 version = "0.1.0"
 description = "Isolated environment for the vibe-trading engine. Kept separate because engines pin conflicting dependencies."
 requires-python = ">=3.12,<3.14"
-dependencies = ["vibe-trading-ai[anthropic]>=0.1.18"]
+dependencies = ["vibe-trading-ai[anthropic]>=0.1.19", "skfolio>=1.12", "quantstats>=0.0.86", "alphalens-reloaded>=0.5", "arch>=8.0", "QuantLib>=1.44"]
 
 [tool.uv]
 package = false

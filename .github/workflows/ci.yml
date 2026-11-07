@@ -47,12 +47,15 @@ jobs:
       - name: Warm up OpenBB (its first import builds an index and takes a while)
         run: uv run python -c "from openbb import obb; print('openbb ready')"
         working-directory: engines/openbb
-      - name: Every engine must report ready
+      - name: Check the maths in the agent engine
+        run: uv run --with pytest pytest -q tests
+        working-directory: engines/vibe-trading
+      - name: Every required engine must report ready
         working-directory: backend
         run: >
           uv run python -c "from finhub_backend import engines;
           s = engines.statuses(); [print(x.id, x.available, x.version, x.reason) for x in s];
-          raise SystemExit(0 if all(x.available for x in s) else 1)"
+          raise SystemExit(0 if all(x.available for x in s if not x.optional) else 1)"
 
   app:
     name: Desktop app build (${{ matrix.os }})

@@ -65,7 +65,7 @@ _health_lock = threading.Lock()
 
 # The provider answered, and it has nothing for that ticker, date or country. That says something about the
 # request, not about the provider, so SYS shouldn't call the provider failing.
-_NO_DATA = re.compile(r"^NoData\b|EmptyDataError|\[Empty\]|CIK not found|Invalid value '|HTTP 404")
+_NO_DATA = re.compile(r"^NoData\b|EmptyDataError|\[Empty\]|CIK not found|CompanyNotFoundError|Invalid value '|HTTP 404|403, message='Attempt to decode JSON with unexpected mimetype: application/xml'")
 
 
 def record_attempts(kind: str, attempts: list[dict]) -> None:
@@ -206,6 +206,27 @@ def build_quote(result: dict) -> dict:
 
 def quote(symbol: str) -> dict:
     return build_quote(_fetch("quote", {"symbol": symbol}))
+
+
+def aligned_closes(symbols: list[str], range_: str) -> tuple[list[str], list[list[float]], dict[str, dict]]:
+    """Dividend-adjusted closes on the dates every ticker traded: (dates, one row per date, where each came from)."""
+    from concurrent.futures import ThreadPoolExecutor
+
+    def fetch(symbol: str):
+        try:
+            return symbol, history(symbol, range_, adjusted=True), None
+        except MarketDataError as exc:
+            return symbol, None, exc
+
+    with ThreadPoolExecutor(max_workers=min(6, len(symbols))) as pool:
+        fetched = list(pool.map(fetch, symbols))
+    failed = [(s, e) for s, _, e in fetched if e is not None]
+    if failed:
+        raise MarketDataError(f"couldn't load {', '.join(s for s, _ in failed)}: {failed[0][1]}", failed[0][1].attempts)
+    series = {s: {str(b["time"]): b["close"] for b in h["bars"]} for s, h, _ in fetched}
+    common = sorted(set.intersection(*(set(v) for v in series.values())))
+    origins = {s: {"provider": h["provider_name"], "fetched_at": h["fetched_at"], "adjusted": h["adjusted"], "bars": len(h["bars"])} for s, h, _ in fetched}
+    return common, [[series[s][d] for s in symbols] for d in common], origins
 
 
 def history(symbol: str, range_: str = "1Y", adjusted: bool = False) -> dict:

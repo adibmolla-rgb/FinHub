@@ -27,6 +27,7 @@ class EngineSpec:
     distribution: str  # pip package name
     license: str
     homepage: str
+    optional: bool = False  # large, and only installed if someone asks for it
 
 
 ENGINES: tuple[EngineSpec, ...] = (
@@ -47,6 +48,36 @@ ENGINES: tuple[EngineSpec, ...] = (
         distribution="vibe-trading-ai",
         license="MIT",
         homepage="https://github.com/HKUDS/Vibe-Trading",
+    ),
+    EngineSpec(
+        id="sentiment",
+        name="finBERT",
+        role="Optional: reads the tone of news headlines for MOOD. About 1.1 GB. Its model is for non-commercial use",
+        module="transformers",
+        distribution="transformers",
+        license="Apache-2.0 (model: CC BY-NC-SA 4.0)",
+        homepage="https://github.com/ProsusAI/finBERT",
+        optional=True,
+    ),
+    EngineSpec(
+        id="tradingagents",
+        name="TradingAgents",
+        role="Optional: a team of AI analysts and traders for AGENTS. About 200 MB, and uses your AI provider",
+        module="tradingagents",
+        distribution="tradingagents",
+        license="Apache-2.0",
+        homepage="https://github.com/TauricResearch/TradingAgents",
+        optional=True,
+    ),
+    EngineSpec(
+        id="qlib",
+        name="Qlib",
+        role="Optional: Microsoft's machine learning workflow for QLIB. About 800 MB",
+        module="qlib",
+        distribution="pyqlib",
+        license="MIT",
+        homepage="https://github.com/microsoft/qlib",
+        optional=True,
     ),
 )
 
@@ -87,6 +118,7 @@ class EngineStatus:
     available: bool
     version: str | None
     reason: str | None
+    optional: bool = False
 
 
 _PROBE = """
@@ -104,7 +136,7 @@ print(json.dumps(out))
 
 def check(spec: EngineSpec, timeout: float = 900.0) -> EngineStatus:
     # Generous timeout: OpenBB builds its command index on the very first import, which takes minutes.
-    base = {k: v for k, v in asdict(spec).items() if k in {"id", "name", "role", "license", "homepage"}}
+    base = {k: v for k, v in asdict(spec).items() if k in {"id", "name", "role", "license", "homepage", "optional"}}
     python = engine_python(spec.id)
     if not python.exists():
         return EngineStatus(**base, available=False, version=None, reason="not installed")

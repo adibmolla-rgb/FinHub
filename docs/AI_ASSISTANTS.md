@@ -88,6 +88,18 @@ All values follow one rule: **fractions are fractions** (0.05 = 5%) unless a fie
 | `finhub_calendar` | `days` (1 to 31), `symbols`, `limit` | Upcoming earnings (by date, then market cap) and economic events |
 | `finhub_filings` | `symbol` | Latest SEC filings with links to the documents |
 | `finhub_etf_holdings` | `symbol` | An ETF's largest holdings; `listed_weight` says how much of the fund they cover |
+| `finhub_find_symbols` | `query`, `kind`, `country`, `sector`, `market_cap`, `limit` | Searches about 70,000 stocks and ETFs by name, ticker or business. A reference list, not live data |
+| `finhub_volatility` | `symbol`, `range` | GARCH volatility forecasts, and a monthly check of whether they beat assuming the last month carries on |
+| `finhub_bond` | `coupon` (a fraction), `years`, `price` (optional, per 100) | Yield, durations, convexity, DV01 and value on the Treasury curve, with QuantLib |
+| `finhub_news_sentiment` | `symbol` | finBERT's reading of the latest headlines' tone. Needs the optional engine from `SYS`, and the first call downloads the model |
+| `finhub_read_filing` | `symbol`, `form`, `section` | Lists a filing's sections, or returns one section's text unchanged. Needs your SEC name and email entered in the app first |
+| `finhub_optimise` | `holdings`, `range` | Tests ways of choosing weights on data they haven't seen, against the given weights. Before trading costs |
+| `finhub_performance_report` | `symbol`, `benchmark`, `range` | Performance statistics, worst falls and returns by month for a ticker |
+| `finhub_paper_accounts` | | Your paper trading accounts: value, cash, return, positions, waiting orders and trades. Orders can only be placed in the app |
+| `finhub_alpha_library` | `zoo`, `theme` | The signal library and saved test results. Tests are started in the app |
+| `finhub_factors` | `region`, `years` | Fama-French factor returns with latest month, last 12 months, average a year, volatility and t-statistic. Fractions, paper portfolios before costs |
+| `finhub_cot` | `market` (optional) | CFTC Commitments of Traders: an overview of 34 major markets, or one market's net positions, share of open interest and score. Check `market` in the reply, because a search can match a similar contract |
+| `finhub_fed` | | Fed funds rate and target, SOFR, M1 and M2, inflation expectations and an approximate real rate |
 | `finhub_yield_curve` | | US Treasury yields by maturity, a month and a year earlier, and the 10y-2y and 10y-3m spreads in basis points |
 | `finhub_screen` | `universe` (`large_caps`/`watchlist`/`custom`), `symbols`, `min_price`, `max_price`, `min_change`, `max_change`, `min_market_cap`, `max_from_high`, `min_from_low`, `sectors` | Matching tickers; tickers without quotes listed under `failed` |
 | `finhub_watchlist` | – | The user's watchlist |

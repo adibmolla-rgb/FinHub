@@ -113,8 +113,10 @@ def _health_of(provider):
         "NoData: no price for ZZZZ",
         "EmptyDataError: \n[Empty] -> FINRA holds no short interest for ZZZZ.",
         "OpenBBError: \n[Error] -> CIK not found for symbol ZZZZ",
+        "CompanyNotFoundError: Company not found: 'ZZZZ'",
         "OpenBBError: \n[Error] -> Invalid value 'xx' for 'country' (provider: 'oecd').",
         "OpenBBError: \n[Error] -> SEC request failed with HTTP 404: https://data.sec.gov/x.json",
+        "OpenBBError: \n[Unexpected Error] -> ContentTypeError -> 403, message='Attempt to decode JSON with unexpected mimetype: application/xml', url='https://cdn-api.cboe.com/x'",
     ],
 )
 def test_having_nothing_for_a_ticker_is_not_a_provider_failure(answer):

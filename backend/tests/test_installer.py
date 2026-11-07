@@ -126,3 +126,32 @@ def test_held_worker_reports_a_market_data_error(half_installed):
     half_installed.hold("engine not installed yet: setup is still running")
     with pytest.raises(market.MarketDataError, match="engine not installed"):
         market.quote("AAPL")
+
+
+def test_an_installed_engine_is_out_of_date_when_its_lock_changes(tmp_path, monkeypatch):
+    source = tmp_path / "engines"
+    (source / "vibe-trading").mkdir(parents=True)
+    lock = source / "vibe-trading" / "uv.lock"
+    lock.write_text("version 1")
+    monkeypatch.setenv("FINHUB_ENGINES_DIR", str(source))
+    monkeypatch.setenv("FINHUB_ENGINE_ENVS_DIR", str(tmp_path / "envs"))
+    assert installer.out_of_date("vibe-trading") is False  # not installed, so nothing to bring up to date
+    python = engines.engine_python("vibe-trading")
+    python.parent.mkdir(parents=True)
+    python.write_text("")
+    assert installer.out_of_date("vibe-trading") is True  # installed before FinHub recorded the lock
+    installer._marker("vibe-trading").write_text(installer._lock_hash("vibe-trading"))
+    assert installer.out_of_date("vibe-trading") is False
+    lock.write_text("version 2")
+    assert installer.out_of_date("vibe-trading") is True
+
+
+def test_failing_to_record_the_version_doesnt_break_an_install(tmp_path, monkeypatch):
+    source = tmp_path / "engines"
+    (source / "vibe-trading").mkdir(parents=True)
+    (source / "vibe-trading" / "uv.lock").write_text("version 1")
+    monkeypatch.setenv("FINHUB_ENGINES_DIR", str(source))
+    monkeypatch.setenv("FINHUB_ENGINE_ENVS_DIR", str(tmp_path / "no" / "such" / "folder"))
+    st = installer.InstallState("vibe-trading")
+    installer._record_lock(st)
+    assert "Couldn't record" in list(st.log)[0]

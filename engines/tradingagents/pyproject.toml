@@ -1,0 +1,9 @@
+[project]
+name = "finhub-engine-tradingagents"
+version = "0.1.0"
+description = "Optional environment for TradingAgents. Pinned to a commit because it isn't published as a package."
+requires-python = ">=3.12,<3.14"
+dependencies = ["tradingagents @ https://github.com/TauricResearch/TradingAgents/archive/9fa1196fffbcfd9de5146d2dd2869df84ab99838.zip"]
+
+[tool.uv]
+package = false

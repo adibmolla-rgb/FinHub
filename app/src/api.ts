@@ -18,6 +18,7 @@ export type EngineStatus = {
   available: boolean
   version: string | null
   reason: string | null
+  optional?: boolean
 }
 
 export type Receipt = {
@@ -410,6 +411,31 @@ export type EtfHoldings = SourceMeta & {
   rows: { symbol: string; name: string | null; weight: Receipt }[]
 }
 
+export type FactorStat = {
+  key: string; label: string; description: string; months: number; latest: Receipt; last_12m?: Receipt
+  annual_return: Receipt; annual_volatility: Receipt; t_stat: Receipt | null; curve: [string, number][]
+}
+export type Factors = SourceMeta & {
+  region: string; region_label: string; regions: Record<string, string>; years: number; start: string; end: string; months: number; unit: string
+  factors: FactorStat[]; rows: (Record<string, number | null> & { date: string })[]; warnings: string[]
+}
+export type CotSideKey = 'large_specs' | 'small_specs' | 'commercials'
+export type CotOverview = SourceMeta & {
+  view: 'overview'; report_date: string | null; sides: { key: CotSideKey; label: string }[]
+  rows: { market: string; date: string | null; open_interest: number | null; sides: Record<CotSideKey, { score: number | null; change: number | null; share_of_oi: number | null; zone: string | null }> }[]
+}
+export type CotMarket = SourceMeta & {
+  view: 'market'; query: string; market: string; contract: string | null; report_date: string; lookback_weeks: number | null; open_interest: Receipt
+  sides: { key: CotSideKey; label: string; net: Receipt; share_of_oi: Receipt; zone: string | null; score?: Receipt; change_1w?: Receipt }[]
+  matches: { name: string; category: string | null }[]
+  history: ({ date: string } & Record<CotSideKey, number | null>)[]
+}
+export type FedConditions = {
+  errors: Record<string, string>; real_rate?: Receipt
+  rates?: SourceMeta & { unit: string; effr?: Receipt; target_lower?: Receipt; target_upper?: Receipt; sofr?: Receipt; sofr_minus_effr?: Receipt; series: [string, number, number | null, number | null, number | null][] }
+  money?: SourceMeta & { unit: string; m1?: Receipt; m2?: Receipt; m2_growth?: Receipt; series: [string, number][] }
+  expectations?: SourceMeta & { unit: string; cpi_1y?: Receipt; cpi_10y?: Receipt; series: [string, number | null, number | null][] }
+}
 export type YieldCurve = SourceMeta & {
   date: string; month_ago_date: string | null; year_ago_date: string | null
   unit_kind: 'fraction' | 'as_reported'; unit: string
@@ -450,6 +476,147 @@ export const researchApi = {
   filings: (symbol: string) => get<Filings>(`/research/filings/${enc(symbol)}`, DATA_TIMEOUT),
   etf: (symbol: string) => get<EtfHoldings>(`/research/etf/${enc(symbol)}`, DATA_TIMEOUT),
   curve: () => get<YieldCurve>('/research/curve', DATA_TIMEOUT),
+  factors: (region: string, years: number) => get<Factors>(`/research/factors?region=${enc(region)}&years=${years}`, DATA_TIMEOUT),
+  cot: (market?: string) => get<CotOverview | CotMarket>(`/research/cot${market ? `?market=${enc(market)}` : ''}`, DATA_TIMEOUT),
+  fed: () => get<FedConditions>('/research/fed', DATA_TIMEOUT),
+}
+
+export type SwarmPreset = { name: string; title: string; description: string; agent_count: number; variables: { name: string; description: string; required: boolean }[] }
+export type SwarmRunSummary = { id: string; preset_name: string; status: string; is_stale: boolean; created_at: string; completed_at: string | null; task_count: number; completed_count: number }
+export type SwarmTask = { id: string; agent_id: string; status: string; summary: string | null; iterations: number; error: string | null }
+export type SwarmRun = {
+  id: string; preset_name: string; status: string; is_stale: boolean; user_vars: Record<string, string>; created_at: string; completed_at: string | null
+  agents: { id: string; role: string }[]; tasks: SwarmTask[]; final_report: string | null
+  total_input_tokens: number | null; total_output_tokens: number | null; provider: string | null; model: string | null
+}
+
+export type FilingText = SourceMeta & { company: string; form: string; filed: string; accession: string; url: string | null; sections: { id: string; title: string; text: string }[] }
+export const readApi = {
+  identity: () => get<{ configured: boolean }>('/settings/sec-identity', 15_000),
+  saveIdentity: (name: string, email: string) => send<{ configured: boolean }>('/settings/sec-identity', 'PUT', { name, email }, 15_000),
+  filing: (symbol: string, form: string, accession?: string) => get<FilingText>(accession ? `/research/read?accession=${enc(accession)}` : `/research/read?symbol=${enc(symbol)}&form=${enc(form)}`, DATA_TIMEOUT),
+}
+
+export type OptimRow = { name: string; yours: boolean; annual_return: Receipt | null; annual_volatility: Receipt | null; sharpe: Receipt | null; max_drawdown: Receipt | null; weights: Record<string, number | null> }
+export type OptimResult = { symbols: string[]; rows: OptimRow[]; problems: { name: string; error: string }[]; train_days: number; test_days: number; held_days: number; windows: number; start: string; end: string; warnings: string[] }
+export type LabMetric = { key: string; label: string; unit: string; value: number; receipt: Receipt; benchmark?: Receipt | null }
+export type LabReport = {
+  label: string; benchmark_label: string | null; days: number; start: string; end: string; metrics: LabMetric[]; relative: LabMetric[]; warnings?: string[]
+  monthly: (Record<string, number | null> & { year: number })[]
+  drawdowns: { start: string; low: string; end: string; days: number; depth: number | null }[]
+}
+export type VolResult = {
+  symbol: string; days: number; start: string; end: string; warnings: string[]
+  current: Receipt | null; last_month: Receipt | null; sample: Receipt | null; long_run: Receipt | null
+  persistence: number | null; half_life_days: number | null; alpha: number | null; beta: number | null
+  forecasts: { days: number; annual_volatility: number; receipt: Receipt }[]
+  check: { months: number; model_error: number | null; naive_error: number | null; average_miss: number | null; rows: { date: string; forecast: number | null; naive: number | null; realised: number | null }[] }
+  series: [string, number | null][]
+}
+export type BondResult = {
+  label: string; price_given: boolean; settlement: string; maturity: string; coupon: number; years: number
+  clean_price: number; dirty_price: number; accrued: number; yield: number; macaulay_duration: number; modified_duration: number; convexity: number; dv01: number; fair_price: number | null
+  yield_receipt: Receipt; modified_receipt: Receipt; convexity_receipt: Receipt; fair_receipt?: Receipt
+  cashflows: { date: string; amount: number }[]; cashflow_count: number
+}
+export type MoodRow = { headline: string; label: 'positive' | 'neutral' | 'negative'; positive: number; neutral: number; negative: number; confidence: Receipt; url?: string; source?: string; published?: string }
+export type MoodResult = { symbol: string; rows: MoodRow[]; counts: Record<'positive' | 'neutral' | 'negative', number>; model: string; news_provider?: string; fetched_at?: string }
+export type FindRow = { symbol: string; name?: string; sector?: string; industry?: string; category_group?: string; category?: string; country?: string; exchange?: string; currency?: string; market_cap?: string }
+export type FindResult = { kind: string; total: number; rows: FindRow[]; provider_name: string }
+export type FindOptions = { countries: string[]; sectors: string[]; market_caps: string[]; etf_groups: string[] }
+export const findApi = {
+  search: (q: { kind: string; query: string; country: string; sector: string; market_cap: string }) => {
+    const params = new URLSearchParams(Object.entries(q).filter(([, v]) => v))
+    return get<FindResult>(`/find?${params}`, DATA_TIMEOUT)
+  },
+  options: () => get<FindOptions>('/find/options', DATA_TIMEOUT),
+}
+export type JobKind = 'agents' | 'qlib'
+export type JobRun<T> = { id: string; kind: JobKind; status: 'running' | 'done' | 'error'; request: Record<string, unknown>; started_at: string; finished_at?: string; error: string | null; result: T | null }
+export type AgentsResult = { symbol: string; date: string; rating: string | null; provider: string; model: string; sections: { key: string; title: string; text: string }[] }
+export type QlibResult = {
+  segments: Record<'train' | 'valid' | 'test', [string, string]>; stocks: number; left_out: string[]; price_provider: string; rounds_used: number; rounds_allowed: number
+  test: { ic: Receipt; icir: Receipt | null; rank_ic: Receipt; ic_positive: Receipt; long_short_annual: Receipt; long_short_t: number | null; days: number }
+  top_features: { name: string; score: number | null }[]; latest_day: string; highest: { symbol: string }[]; lowest: { symbol: string }[]; distinct_predictions: number
+}
+export const jobsApi = {
+  list: <T,>(kind: JobKind) => get<JobRun<T>[]>(`/jobs?kind=${kind}`, 10_000),
+  get: <T,>(id: string) => get<JobRun<T>>(`/jobs/${enc(id)}`, 10_000),
+  agents: <T,>(symbol: string) => send<JobRun<T>>('/jobs/agents', 'POST', { symbol }, 30_000),
+  qlib: <T,>() => send<JobRun<T>>('/jobs/qlib', 'POST', {}, 30_000),
+}
+export const labApi = {
+  volatility: (symbol: string) => send<VolResult>('/lab/volatility', 'POST', { symbol }),
+  bond: (coupon: number, years: number, price?: number) => send<BondResult>('/lab/bond', 'POST', { coupon, years, price: price ?? null }),
+  mood: (symbol: string) => send<MoodResult>('/lab/mood', 'POST', { symbol }, 1_800_000), // the first use downloads the model
+  optimise: (holdings: { symbol: string; weight: number }[], range: string) => send<OptimResult>('/lab/optimise', 'POST', { holdings, range }),
+  report: (symbol: string, benchmark: string | undefined, range: string) => send<LabReport>('/lab/report', 'POST', { symbol, benchmark, range }),
+  series: (label: string, dates: string[], equity: number[]) => send<LabReport>('/lab/report/series', 'POST', { label, dates, equity }),
+  backtest: (request: BacktestRequest) => send<LabReport>('/lab/report/backtest', 'POST', request),
+}
+
+export type PaperSide = 'buy' | 'sell'
+export type PaperAccountSummary = { id: string; label: string; currency: string; created_at: string; last_date: string | null; pending: number }
+export type PaperOrder = { id: string; symbol: string; side: PaperSide; quantity: number; placed_at: string; fill_day: string }
+export type PaperAccount = {
+  id: string; label: string; currency: string; created_at: string; start_on: string; last_date: string | null; note: string | null; next_fill_day: string
+  value?: Receipt; cash: Receipt; start: Receipt; profit?: Receipt; return?: Receipt; fees: Receipt
+  positions: { symbol: string; shares: number; average_cost: number; price: Receipt | null; value: number | null; profit: number | null }[]
+  orders: PaperOrder[]
+  fills: { date: string; symbol: string; side: PaperSide; shares: number; price: number; fee: number }[]
+  rejected: { date: string; symbol: string; side: PaperSide; shares: number; reason: string }[]
+  nav: [string, number][]
+}
+// The first call starts the engine, which can take a while.
+export const paperApi = {
+  accounts: () => get<PaperAccountSummary[]>('/paper/accounts', 240_000),
+  account: (id: string) => get<PaperAccount>(`/paper/accounts/${enc(id)}`, 240_000),
+  create: (label: string, cash: number) => send<{ id: string }>('/paper/accounts', 'POST', { label, cash }),
+  place: (id: string, symbol: string, side: PaperSide, quantity: number) => send<PaperOrder>(`/paper/accounts/${enc(id)}/orders`, 'POST', { symbol, side, quantity }),
+  cancel: (orderId: string) => send<unknown>(`/paper/orders/${enc(orderId)}`, 'DELETE', undefined, 15_000),
+}
+
+export type AlphaInfo = { id: string; zoo: string; theme?: string[]; nickname?: string; decay_horizon?: number; min_warmup_bars?: number }
+export type AlphaDetail = { id: string; zoo: string; meta?: { nickname?: string; formula_latex?: string; notes?: string; decay_horizon?: number; min_warmup_bars?: number } }
+export type AlphaRunSummary = {
+  id: string; kind: 'compare' | 'bench' | 'factor'; status: string; started_at: string; finished_at?: string; error: string | null
+  request: { period: string; zoo?: string; alpha_ids?: string[]; alpha_id?: string }
+  progress: { n_done?: number; n_total?: number; stage?: string; current_alpha_id?: string | null } | null
+}
+export type AlphaFactorResult = {
+  alpha_id: string; period: string; quantiles: number; observations: number; stocks: number; start: string; end: string
+  horizons: { horizon: string; ic_mean: number | null; ic_std: number | null; ic_t: number | null; ic_positive: number | null; days: number; spread: number | null; annual_alpha: number | null; beta: number | null }[]
+  by_quantile: (Record<string, number | null> & { quantile: number })[]
+  turnover: { top: number | null; bottom: number | null; rank_autocorrelation: number | null }
+  meta: { survivorship_bias?: boolean; constituent_source_date?: string; missing_instruments?: string[]; requested_instruments?: number; price_sources?: string[]; degraded?: boolean }
+}
+export type AlphaRun = AlphaRunSummary & {
+  factor?: never
+  result: {
+    rows: { id: string; ic_mean: number | null; ic_std: number | null; ir: number | null; ic_positive_ratio: number | null; ic_count: number | null; theme?: string[] }[]
+    skipped: { id: string; reason: string }[]
+    meta: { survivorship_bias?: boolean; constituent_source_date?: string; requested_instruments?: number; fetched_instruments?: number; missing_instruments?: string[]; price_sources?: string[]; degraded?: boolean }
+    n_skipped?: number; alive?: number; reversed?: number; dead?: number; n_alphas_tested?: number
+    by_theme?: Record<string, { alive: number; reversed: number; dead: number; count: number }>
+  } | null
+}
+export const alphaApi = {
+  library: (zoo: string, theme?: string) => get<{ alphas: AlphaInfo[]; total: number }>(`/alpha/library?zoo=${enc(zoo)}${theme ? `&theme=${enc(theme)}` : ''}`, 240_000),
+  detail: (id: string) => get<AlphaDetail>(`/alpha/library/${enc(id)}`, 60_000),
+  runs: () => get<AlphaRunSummary[]>('/alpha/runs', 15_000),
+  run: (id: string) => get<AlphaRun>(`/alpha/runs/${enc(id)}`, 15_000),
+  compare: (alpha_ids: string[], period: string) => send<{ id: string }>('/alpha/compare', 'POST', { alpha_ids, period }),
+  bench: (zoo: string, period: string) => send<{ id: string }>('/alpha/bench', 'POST', { zoo, period }),
+  factor: (alpha_id: string, period: string) => send<{ id: string }>('/alpha/factor', 'POST', { alpha_id, period }),
+}
+
+// The first call starts the agent, which can take a while.
+export const swarmApi = {
+  presets: () => get<SwarmPreset[]>('/agent/swarm/presets', 240_000),
+  runs: () => get<SwarmRunSummary[]>('/agent/swarm/runs', 30_000),
+  run: (id: string) => get<SwarmRun>(`/agent/swarm/runs/${enc(id)}`, 30_000),
+  start: (preset: string, variables: Record<string, string>) => send<{ id: string; status: string }>('/agent/swarm/runs', 'POST', { preset, variables }),
+  cancel: (id: string) => send<unknown>(`/agent/swarm/runs/${enc(id)}/cancel`, 'POST', {}, 15_000),
 }
 
 // ---------------------------------------------------------------------------------------------

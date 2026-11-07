@@ -1,3 +1,5 @@
+import { labApi, type Receipt } from '../api'
+import { SeriesReport } from '../Lab'
 import { useEffect, useRef, useState } from 'react'
 import { ColorType, createChart, LineSeries, AreaSeries, type Time } from 'lightweight-charts'
 import { ApiError, backtestApi, type BacktestRequest, type BacktestResult, type Metrics, type StrategyInfo } from '../api'
@@ -103,7 +105,7 @@ function Surface({ result }: { result: BacktestResult }) {
 
 export type BacktestPreset = { symbol?: string; strategy?: string; params?: number[] }
 
-export function BacktestWorkspace({ preset }: { preset: BacktestPreset }) {
+export function BacktestWorkspace({ preset, onReceipt }: { preset: BacktestPreset; onReceipt: (r: Receipt) => void }) {
   const [strategies, setStrategies] = useState<StrategyInfo[] | null>(null)
   const [req, setReq] = useState<BacktestRequest>({
     symbol: preset.symbol ?? 'SPY', strategy: preset.strategy ?? 'sma', params: {}, range: '5Y',
@@ -238,6 +240,11 @@ export function BacktestWorkspace({ preset }: { preset: BacktestPreset }) {
                   k, result.metrics.strategy[k] ?? null, result.metrics.strategy_before_costs[k] ?? null, result.metrics.buy_hold[k] ?? null,
                 ]),
               ]} />
+              <SeriesReport
+                title="Performance report"
+                onReceipt={onReceipt}
+                load={() => labApi.backtest({ ...req, symbol: result.symbol, strategy: result.strategy, params: result.params })}
+              />
               <CopyCsvButton label="Copy equity curve" rows={() => [['date', 'strategy', 'buy_and_hold', 'drawdown'], ...result.curve.map((c) => [c.time, c.strategy, c.buy_hold, c.drawdown])]} />
             </div>
           </div>

@@ -8,17 +8,46 @@
   quizzes with explanations, try-it buttons that run FinHub commands, resources, and progress saved
   locally. Tracks carry an `access` flag (`free`/`premium`) for future paid courses; no payments yet.
 
+- `FIND`: search about 70,000 stocks and ETFs by name, business, country, sector and size, with FinanceDatabase. `SCREEN` now takes a list of tickers.
+- `VOL`: GARCH volatility forecasts with arch, checked each month against a simple guess.
+- `BOND`: value a bond with QuantLib: yield, durations, convexity and value on the Treasury curve.
+- `MOOD`, `QLIB` and `AGENTS`: finBERT, Microsoft Qlib and TradingAgents as optional engines, installed from `SYS`. `QLIB` and
+  `AGENTS` run in the background and are saved, and both stop if FinHub closes.
+- `LEARN`: links to Machine Learning for Algorithmic Trading, Financial Models Numerical Methods and more, with try-it buttons for the new commands.
+- `READ`: read SEC filings inside FinHub, section by section, and search them, with edgartools.
+- `OPTIM`: test ways of choosing weights out of sample against your own, with skfolio.
+- `REPORT`: performance reports with QuantStats, for a ticker, a backtest or a paper account.
+- `ALPHA`: analyse one signal in depth with Alphalens: prediction by holding period, returns across five groups of stocks,
+  and turnover.
+- `PAPER`: practice trading with real prices and fake money, on Vibe-Trading's paper ledger. Orders fill at the
+  first close still ahead, so nothing can fill at a price you've already seen. No AI provider needed.
+- `ALPHA`: Vibe-Trading's library of published signals, 281 of which run on US stocks, with tests on the S&P 500 that run in the background and
+  are saved. Results carry their survivorship warning. No AI provider needed.
+- `FACTORS`: Fama-French factor returns for 8 regions, from Kenneth French's Data Library.
+- `COT`: CFTC Commitments of Traders, as an overview of 34 major markets or for one market.
+- `FED`: Fed funds rate and target, SOFR, money supply, inflation expectations and an approximate real rate.
+- `SWARM`: Vibe-Trading's 30 teams of AI agents, with live progress for each agent. Nothing starts until you
+  press Start team.
+- Eight new MCP tools: `finhub_factors`, `finhub_cot`, `finhub_fed`, `finhub_paper_accounts`, `finhub_alpha_library`,
+  `finhub_optimise`, `finhub_performance_report` and `finhub_read_filing`.
 - `PORT`: your own record of buys, sells and splits, valued at live prices, with first-in, first-out cost
   basis, profit, weights and a button that opens `RISK` with your weights. It can't place orders.
 - Six research panels, built on data the OpenBB engine already installs, each with an MCP tool:
   `OWN` (insider trades, institutional holders, short interest), `CHAIN` (live options chain and volatility
   smile), `CAL` (earnings and economic calendars), `FILINGS` (SEC filings), `ETF` (largest holdings) and
   `CURVE` (US Treasury yield curve and spreads).
-- `CAL`, `CHAIN`, `CURVE`, `ETF`, `FILINGS`, `OWN` and `PORT` are now commands, so tickers with those names
+- Vibe-Trading updated to 0.1.19. Installed engines now update themselves when a new FinHub release pins a newer
+  version.
+- `ALPHA`, `CAL`, `CHAIN`, `COT`, `CURVE`, `ETF`, `FACTORS`, `FED`, `FILINGS`, `OPTIM`, `OWN`, `PAPER`, `PORT`, `READ`, `REPORT`
+  and `SWARM` are now commands, so tickers with those names
   open with `EQ`, for example `EQ CAL`.
 
 **Fixed**
 - The top-bar clock overflowed the screen on phones (web demo).
+- AI assistants using FinHub's tools only saw "Error executing tool" when one failed, not the reason, including
+  when FinHub simply wasn't open.
+- On Windows, `ASK`, `BT` and `DEBATE` never started: the agent hung while loading, then gave up with "the agent
+  did not start within 180s".
 - Installing a new version over an old one could keep running the old backend, because `uv` only looked at
   `pyproject.toml`'s modified time and builds preserve it. New features then failed with "not found".
 - `SYS` and the status bar called a working data source "failing" after you asked for a ticker, date or country

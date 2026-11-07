@@ -140,7 +140,7 @@ Knowing *why* helps you judge whether an effect should persist.
       quiz: [
         { q: 'Cross-sectional momentum buys…', options: ['Assets that fell most', 'Assets with the best recent returns relative to others', 'The cheapest assets', 'Random assets'], answer: 1, why: 'It ranks assets by recent performance and buys the winners (often shorting the losers).' },
       ],
-      tryIt: [{ command: 'BACKTEST SPY momentum 252', label: 'Test time-series momentum: BACKTEST' }],
+      tryIt: [{ command: 'BACKTEST SPY momentum 252', label: 'Test time-series momentum: BACKTEST' }, { command: 'FACTORS', label: 'See real factor returns: FACTORS' }, { command: 'ALPHA momentum', label: 'Test published momentum signals: ALPHA' }],
     },
     {
       id: 'methods-options-pricing',
@@ -192,6 +192,7 @@ trading volatility.
       resources: [
         { title: 'John Hull, Options, Futures, and Other Derivatives', url: 'https://www.google.com/search?q=Hull+Options+Futures+and+Other+Derivatives', note: 'The standard textbook' },
         { title: 'Sheldon Natenberg, Option Volatility and Pricing', url: 'https://www.google.com/search?q=Natenberg+Option+Volatility+and+Pricing', note: 'How option traders think' },
+        { title: 'Financial Models, Numerical Methods (notebooks)', url: 'https://github.com/cantaro86/Financial-Models-Numerical-Methods', note: 'Pricing models worked through in Python', free: true },
       ],
     },
     {
@@ -270,7 +271,12 @@ for flexible models.
       quiz: [
         { q: 'Why not randomly shuffle data into train and test sets for a trading model?', options: ['It’s slower', 'Future information leaks into training', 'It reduces accuracy on purpose', 'Libraries don’t allow it'], answer: 1, why: 'Shuffling lets the model learn from data that comes after the test points, which can’t happen in real trading.' },
       ],
-      resources: [{ title: 'fast.ai Practical Deep Learning (free)', url: 'https://course.fast.ai', free: true }],
+      tryIt: [{ command: 'QLIB', label: 'Train a model and test it on later years: QLIB' }, { command: 'MOOD AAPL', label: 'A language model reading headlines: MOOD' }],
+      resources: [
+        { title: 'fast.ai Practical Deep Learning (free)', url: 'https://course.fast.ai', free: true },
+        { title: 'Stefan Jansen, Machine Learning for Algorithmic Trading (code)', url: 'https://github.com/stefan-jansen/machine-learning-for-trading', note: 'Runnable notebooks for the whole workflow', free: true },
+        { title: 'Microsoft Qlib', url: 'https://github.com/microsoft/qlib', note: 'The research platform behind the QLIB command', free: true },
+      ],
     },
   ],
 }

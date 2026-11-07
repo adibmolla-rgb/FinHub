@@ -50,7 +50,7 @@ function parseHoldings(text: string) {
   return out
 }
 
-export function RiskWorkspace({ initial }: { initial?: { symbol: string; weight: number }[] }) {
+export function RiskWorkspace({ initial, onOpen }: { initial?: { symbol: string; weight: number }[]; onOpen?: (command: string) => void }) {
   const [holdingsText, setHoldingsText] = useState(() =>
     (initial?.length ? initial : [{ symbol: 'SPY', weight: 60 }, { symbol: 'TLT', weight: 30 }, { symbol: 'GLD', weight: 10 }])
       .map((h) => `${h.symbol} ${h.weight}`).join('  '),
@@ -106,6 +106,7 @@ export function RiskWorkspace({ initial }: { initial?: { symbol: string; weight:
               {error instanceof ApiError && error.attempts.length > 0 && <ul className="small muted">{error.attempts.map((a, i) => <li key={i}>✗ {a.provider}: {a.error}</li>)}</ul>}
             </div>
           )}
+          {r && r.symbols.length >= 2 && onOpen && <button type="button" className="chip" onClick={() => onOpen(`OPTIM ${r.symbols.map((s, i) => `${s} ${+(r.weights[i] * 100).toFixed(2)}`).join(' ')}`)}>Test these weights out of sample</button>}
           {r && <p className="muted small">{r.period.start} → {r.period.end} · {r.period.days} shared trading days · daily rebalanced · {r.data.map((d) => `${d.symbol}: ${d.provider}`).join(', ')}</p>}
         </form>
       </Panel>

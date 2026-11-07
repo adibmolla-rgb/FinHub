@@ -20,6 +20,7 @@ import threading
 import time
 from pathlib import Path
 
+import httpx
 from pydantic import BaseModel, Field
 
 from finhub_backend import engines
@@ -121,6 +122,14 @@ class AgentNotReady(Exception):
     pass
 
 
+class EngineError(Exception):
+    """The agent engine answered with an error."""
+
+    def __init__(self, message: str, status: int):
+        super().__init__(message)
+        self.status = status
+
+
 def _port_open() -> bool:
     try:
         with socket.create_connection(("127.0.0.1", AGENT_PORT), timeout=0.3):
@@ -139,13 +148,19 @@ class AgentServer:
     def running(self) -> bool:
         return self._proc is not None and self._proc.poll() is None
 
-    def ensure(self, timeout: float = 180.0) -> None:
-        """Start the agent server if needed and wait until it accepts connections."""
+    def ensure(self, timeout: float = 180.0, require_ai: bool = True) -> None:
+        """Start the agent server if needed and wait until it accepts connections.
+
+        The paper ledger and signal library run on the same server without an AI model, so the server can already be
+        up with no provider set. Saving a provider restarts it, so a provider that is set is always in its environment.
+        """
         with self._lock:
+            if require_ai and self.running and not load_settings().public()["configured"]:
+                raise AgentNotReady("no AI provider configured; set one with the AI command")
             if self.running and _port_open():
                 return
             if not self.running:
-                self._start()
+                self._start(require_ai)
         deadline = time.time() + timeout
         while time.time() < deadline:
             if _port_open():
@@ -155,12 +170,17 @@ class AgentServer:
             time.sleep(0.5)
         raise AgentNotReady(f"the agent did not start within {timeout:.0f}s; see {self._log}")
 
-    def _start(self) -> None:
+    def _start(self, require_ai: bool = True) -> None:
+        from finhub_backend import installer
+
+        if installer.state("vibe-trading").state == "running":
+            # A process that imports a half-installed package keeps the broken module for life.
+            raise AgentNotReady("the reasoning-agent engine (Vibe-Trading) is updating; try again in a few minutes")
         python = engines.engine_python("vibe-trading")
         if not python.exists():
             raise AgentNotReady("the reasoning-agent engine (Vibe-Trading) is not installed; install it from SYS")
         settings = load_settings()
-        if not settings.public()["configured"]:
+        if require_ai and not settings.public()["configured"]:
             raise AgentNotReady("no AI provider configured; set one with the AI command")
         if _port_open():
             raise AgentNotReady(f"port {AGENT_PORT} is already in use by another program")
@@ -196,6 +216,20 @@ class AgentServer:
 
 
 server = AgentServer()
+
+
+def call_engine(method: str, path: str, timeout: float = 120.0, **kwargs):
+    """Call the engine for something that doesn't use an AI model. Raises AgentNotReady or EngineError."""
+    server.ensure(require_ai=False)
+    try:
+        res = httpx.request(method, f"{AGENT_URL}{path}", timeout=timeout, **kwargs)
+        body = res.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        raise EngineError(f"the agent engine didn't answer: {exc}", 502) from exc
+    if res.status_code >= 400:
+        detail = body.get("detail") if isinstance(body, dict) else None
+        raise EngineError(str(detail or body), res.status_code)
+    return body
 
 
 # --------------------------------------------------------------------------------------------------

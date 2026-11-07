@@ -63,7 +63,7 @@ AAPL, MSFT, SHEL.L (Shell in London). FinHub uses Yahoo's ticker style.
           why: 'It already has exposure to oil prices through its business; the futures reduce that risk.',
         },
       ],
-      tryIt: [{ command: 'SPY', label: 'Look at an ETF: SPY' }, { command: '^GSPC', label: 'Look at an index: ^GSPC' }],
+      tryIt: [{ command: 'SPY', label: 'Look at an ETF: SPY' }, { command: '^GSPC', label: 'Look at an index: ^GSPC' }, { command: 'FIND semiconductor', label: 'Find companies by what they do: FIND' }],
     },
     {
       id: 'markets-order-book',
@@ -252,7 +252,7 @@ daily strategy is so rare that you should suspect a bug or overfitting first.
           why: 'Results that good are extremely rare. Most often they come from a data error, trading on information you wouldn’t have had, or testing many variants until one looked lucky.',
         },
       ],
-      tryIt: [{ command: 'CMP SPY QQQ TLT', label: 'Compare volatility and Sharpe: CMP' }],
+      tryIt: [{ command: 'CMP SPY QQQ TLT', label: 'Compare volatility and Sharpe: CMP' }, { command: 'VOL SPY', label: 'Forecast volatility, and check the forecast: VOL' }],
     },
     {
       id: 'markets-costs-short-leverage',
@@ -463,7 +463,7 @@ option pricing.
           why: '110 / 1.10 = 100.',
         },
       ],
-      tryIt: [{ command: 'MACRO US', label: 'US macro data: MACRO US' }],
+      tryIt: [{ command: 'MACRO US', label: 'US macro data: MACRO US' }, { command: 'BOND 4.5 10', label: 'See how rates set a bond’s value: BOND' }],
     },
   ],
 }

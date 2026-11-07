@@ -374,3 +374,234 @@ def test_cboe_feed_is_not_asked_for_names_it_cannot_have(symbol):
 def test_options_chain_tries_the_direct_feed_first():
     assert providers.CHAINS["options_chain"][0] == "cboe_direct"
     assert set(providers.CHAINS["options_chain"]) == set(providers.FETCHERS["options_chain"])
+
+
+def test_factor_rows_read_momentum_under_either_name():
+    five = [{"date": "2026-08-01", "mkt_rf": 1.0, "smb": 2.0, "hml": 3.0, "rmw": 4.0, "cma": 5.0, "rf": 0.3}]
+    assert providers.merge_factor_rows(five, [{"date": "2026-08-01", "mom": 6.0, "wml": None}])[0]["mom"] == 6.0  # US
+    assert providers.merge_factor_rows(five, [{"date": "2026-08-01", "mom": None, "wml": -6.0}])[0]["mom"] == -6.0  # elsewhere
+    assert providers.merge_factor_rows(five, [{"date": "2026-08-01", "mom": 0.0, "wml": 9.0}])[0]["mom"] == 0.0  # zero is a value
+    assert providers.merge_factor_rows(five, [])[0]["mom"] is None
+    assert providers.merge_factor_rows(five, [{"date": "1999-01-01", "mom": 1.0}])[0]["mom"] is None  # other months ignored
+
+
+def test_cot_search_prefers_the_closest_name_not_the_first_alphabetically():
+    rows = [{"name": "ADJUSTED INT RATE S&P 500 TOTL"}, {"name": "S&P 500 Consolidated"}, {"name": "E-MINI S&P 500"}, {"name": "S&P"}]
+    assert [r["name"] for r in providers.best_cot_matches("s&p", rows)][:2] == ["S&P", "S&P 500 Consolidated"]
+    assert providers.best_cot_matches("gold", [{"name": "PAX GOLD PERP STYLE"}, {"name": "GOLD"}])[0]["name"] == "GOLD"
+
+
+def test_major_cot_markets_resolve_by_name_alias_or_unique_part():
+    labels = {"Gold": "CFTC_088691", "WTI Oil": "CFTC_067651", "Brent Oil": "CFTC_06765T", "S&P 500": "CFTC_13874A"}
+    assert providers.curated_cot_code("gold", labels) == "CFTC_088691"
+    assert providers.curated_cot_code("wti", labels) == "CFTC_067651"
+    assert providers.curated_cot_code("s&p", labels) == "CFTC_13874A"
+    assert providers.curated_cot_code("crude oil", labels) == "CFTC_067651"
+    assert providers.curated_cot_code("oi", labels) is None  # two markets have it, so it goes to the search
+    assert providers.curated_cot_code("lumber", labels) is None
+    assert providers.curated_cot_code("g", labels) is None  # only Gold has a "g" here, but that's a guess
+
+
+def test_only_contract_codes_are_treated_as_codes():
+    for code in ("088691", "CFTC_088691", "06765T"):
+        assert providers._COT_CODE.fullmatch(code)
+    for word in ("COTTON", "cotton", "GOLD", "BITCOIN"):  # six letters isn't a code
+        assert not providers._COT_CODE.fullmatch(word)
+
+
+def test_h6_reads_the_seasonally_adjusted_columns():
+    text = (
+        '"Series Description","M1","M2","M1 NSA","M2 NSA"\n'
+        '"Unit:","Currency:Billions","Currency:Billions","Currency:Billions","Currency:Billions"\n'
+        '"Time Period","M1.M","M2.M","M1_N.M","M2_N.M"\n'
+        "2026-08,19967.3,23300.9,19932.1,23242.5\n"
+        "2026-09,20061.2,23413.9,20009.7,23339.6\n"
+        "2026-10,ND,ND,ND,ND\n"
+    )
+    rows = providers.parse_h6_csv(text)
+    assert rows == [
+        {"date": "2026-08-01", "m1": pytest.approx(19967.3e9), "m2": pytest.approx(23300.9e9)},
+        {"date": "2026-09-01", "m1": pytest.approx(20061.2e9), "m2": pytest.approx(23413.9e9)},
+    ]
+    with pytest.raises(providers.NoData):
+        providers.parse_h6_csv('"Time Period","M2_N.M"\n2026-08,1\n')
+
+
+def test_new_sources_are_registered_with_names():
+    for kind in ("factors", "cot_overview", "cot_market", "fed_rates", "fed_money", "fed_expectations"):
+        for provider in providers.CHAINS[kind]:
+            assert provider in providers.FETCHERS[kind]
+            assert provider in providers.PROVIDER_NAMES
+
+
+def test_the_cot_market_list_is_where_we_read_it_from():
+    # A private OpenBB module, pinned by uv.lock. If an update moves it, every named COT market breaks.
+    from openbb_cftc.utils.cot_markets import COT_MARKETS
+
+    labels = {m["label"]: m["code"] for m in COT_MARKETS}
+    assert len(labels) >= 30
+    assert labels["Gold"] == "CFTC_088691"
+
+
+def test_a_slow_first_download_gets_one_more_try():
+    calls = []
+
+    def slow_then_ready():
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("[Unexpected Error] -> TimeoutError -> ")
+        return "ready"
+
+    assert providers._once_more_on_timeout(slow_then_ready) == "ready"
+    calls.clear()
+
+    def always_slow():
+        calls.append(1)
+        raise TimeoutError("still slow")
+
+    with pytest.raises(TimeoutError):
+        providers._once_more_on_timeout(always_slow)
+    assert len(calls) == 2
+    calls.clear()
+
+    def wrong_ticker():
+        calls.append(1)
+        raise ValueError("no such market")
+
+    with pytest.raises(ValueError):
+        providers._once_more_on_timeout(wrong_ticker)
+    assert len(calls) == 1  # only a timeout is worth repeating
+
+
+def test_factors_survive_a_failed_momentum_download(monkeypatch):
+    class Row:
+        model_fields = {"mkt_rf": type("F", (), {"json_schema_extra": {"x-unit_measurement": "percent"}})()}
+
+        def model_dump(self):
+            return {"date": "2026-08-01", "mkt_rf": 1.0, "smb": 2.0, "hml": 3.0, "rmw": 4.0, "cma": 5.0, "rf": 0.3}
+
+    def factors(factor, **kwargs):
+        if factor == "momentum":
+            raise RuntimeError("the momentum file moved")
+        return type("Result", (), {"results": [Row()]})()
+
+    fake = type("Obb", (), {"famafrench": type("FF", (), {"factors": staticmethod(factors)})})
+    monkeypatch.setattr(providers, "obb", lambda: fake)
+    out = providers.famafrench_factors(region="america", years=1)
+    assert out["rows"][0]["mkt_rf"] == 1.0 and out["rows"][0]["mom"] is None
+    assert "momentum file moved" in out["momentum_error"]
+
+
+def test_the_gpl_package_edgartools_asks_for_stays_out():
+    # FinHub only depends on Apache, MIT and BSD code. Our own unidecode.py stands in for the one function it uses.
+    import importlib.metadata
+
+    with pytest.raises(importlib.metadata.PackageNotFoundError):
+        importlib.metadata.version("unidecode")
+    import unidecode
+
+    assert unidecode.__file__.endswith(str(Path("engines/openbb/unidecode.py"))) or Path(unidecode.__file__).parent == Path(providers.__file__).parent
+    assert unidecode.unidecode("Nestlé Société") == "Nestle Societe"
+    assert unidecode.unidecode("plain") == "plain"
+
+
+class FakeReport:
+    items = ["Part I, Item 1", "Part I, Item 2", "Empty", "Broken", "Item 7"]
+    texts = {
+        "Part I, Item 1": "Item 1.\xa0\xa0\xa0Financial Statements\n\nApple Inc.",
+        "Part I, Item 2": "   \n\nManagement discussion with no heading\n",
+        "Empty": "",
+        "Item 7": "Item 7.\xa0Management’s Discussion\n\nText",
+    }
+
+    def __getitem__(self, item):
+        if item == "Broken":
+            raise KeyError(item)
+        return self.texts[item]
+
+
+def test_filings_split_into_their_own_sections():
+    out = providers.filing_sections(FakeReport(), lambda: pytest.fail("the whole text isn't needed"))
+    assert [s["title"] for s in out] == ["Part I · Item 1. Financial Statements", "Part I · Item 2", "Item 7. Management’s Discussion"]
+    assert out[0]["text"] == "Item 1.   Financial Statements\n\nApple Inc."  # no-break spaces tidied, words unchanged
+    assert out[1]["id"] == "Part I, Item 2"
+
+
+def test_a_long_heading_is_shortened_not_replaced():
+    long = "Item 2. Management's Discussion and Analysis of Financial Condition and Results of Operations and Much More"
+    title = providers._section_title("Part I, Item 2", long + "\n\nText")
+    assert title.startswith("Part I · Item 2. Management's Discussion") and title.endswith("…") and len(title) < 105
+
+
+def test_a_filing_without_items_is_read_whole():
+    assert providers.filing_sections(None, lambda: " All of it ") == [{"id": "full", "title": "Full text", "text": "All of it"}]
+    assert providers.filing_sections(type("R", (), {"items": []})(), lambda: "Text")[0]["id"] == "full"
+    with pytest.raises(providers.NoData):
+        providers.filing_sections(None, lambda: "   ")
+
+
+def find_frame():
+    import pandas as pd
+
+    rows = {
+        "AAPL": {"name": "Apple Inc.", "summary": "Phones", "sector": "Information Technology", "country": "United States", "market_cap": "Mega Cap"},
+        "APLE": {"name": "Apple Hospitality REIT", "summary": "Hotels", "sector": "Real Estate", "country": "United States", "market_cap": "Mid Cap"},
+        "MLP": {"name": "Maui Land & Pineapple", "summary": "Land", "sector": "Real Estate", "country": "United States", "market_cap": "Micro Cap"},
+        "XOM": {"name": "Exxon", "summary": "Oil, and apple orchards", "sector": "Energy", "country": "United States", "market_cap": "Mega Cap"},
+        "SHEL.L": {"name": "Shell plc", "summary": float("nan"), "sector": "Energy", "country": "United Kingdom", "market_cap": "Mega Cap"},
+        "TINY": {"name": "Tiny Co", "summary": "Things", "sector": "Energy", "country": "United States", "market_cap": float("nan")},
+    }
+    return pd.DataFrame.from_dict(rows, orient="index")
+
+
+@pytest.fixture
+def found(monkeypatch):
+    monkeypatch.setitem(providers._find_frames, "equities", find_frame())
+
+
+def test_find_ranks_the_ticker_then_names_then_descriptions(found):
+    out = providers.find_symbols(query="apple")
+    assert [r["symbol"] for r in out["rows"]] == ["AAPL", "APLE", "MLP", "XOM"] and out["total"] == 4
+    assert providers.find_symbols(query="aapl")["rows"][0]["symbol"] == "AAPL"
+
+
+def test_find_prefers_the_whole_word():
+    rows = [{"symbol": "HYP", "name": "Golden Eagle Hypergrowth ETF"}, {"symbol": "GLD", "name": "SPDR Gold Shares"}]
+    assert [r["symbol"] for r in providers.rank_found(rows, "gold")] == ["GLD", "HYP"]
+
+
+def test_find_filters_and_cuts_after_ranking(found):
+    out = providers.find_symbols(sector="Energy", limit=2)
+    assert out["total"] == 3 and [r["symbol"] for r in out["rows"]] == ["XOM", "SHEL.L"]  # size first, then US listings
+    assert [r["symbol"] for r in providers.find_symbols(country="United Kingdom")["rows"]] == ["SHEL.L"]
+    assert [r["symbol"] for r in providers.find_symbols(market_cap="Micro Cap")["rows"]] == ["MLP"]
+
+
+def test_find_keeps_us_listings_of_foreign_companies_and_any_exact_ticker(monkeypatch):
+    # Main listings alone hid TSM, ASML and BP: found by searching for them in the real window.
+    import pandas as pd
+
+    everything = pd.DataFrame.from_dict({
+        "2330.TW": {"name": "Taiwan Semiconductor", "exchange": "TAI", "market_cap": "Mega Cap"},
+        "TSM": {"name": "Taiwan Semiconductor", "exchange": "NYQ", "market_cap": "Mega Cap"},
+        "TSFA.F": {"name": "Taiwan Semiconductor", "exchange": "FRA", "market_cap": "Mega Cap"},
+    }, orient="index")
+
+    class Database:
+        def select(self, only_primary_listing, exclude_delisted):
+            return everything.loc[["2330.TW"]] if only_primary_listing else everything
+
+    import financedatabase
+
+    monkeypatch.setattr(financedatabase, "Equities", Database)
+    monkeypatch.setattr(providers, "_find_frames", {})
+    monkeypatch.setattr(providers, "_find_everything", {})
+    assert [r["symbol"] for r in providers.find_symbols(query="taiwan")["rows"]] == ["TSM", "2330.TW"]
+    assert [r["symbol"] for r in providers.find_symbols(query="tsfa.f")["rows"]] == ["TSFA.F"]
+    assert providers.find_symbols(query="tsfa.f", market_cap="Micro Cap")["rows"] == []
+
+
+def test_find_treats_the_search_as_text_and_leaves_gaps_empty(found):
+    assert providers.find_symbols(query="(((")["rows"] == []  # not a regular expression
+    tiny = providers.find_symbols(query="tiny")["rows"][0]
+    assert tiny["market_cap"] is None  # not nan, which wouldn't survive JSON

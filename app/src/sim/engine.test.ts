@@ -211,3 +211,107 @@ describe('portfolio command', () => {
     }
   })
 })
+
+describe('factor, positioning, Fed and team commands', () => {
+  it('parses them', () => {
+    expect(runCommand('FED')).toMatchObject({ kind: 'research', view: { view: 'fed' } })
+    expect(runCommand('factors')).toMatchObject({ kind: 'research', view: { view: 'factors', region: 'US', years: 30 } })
+    expect(runCommand('FACTORS EUROPE 10')).toMatchObject({ view: { view: 'factors', region: 'EUROPE', years: 10 } })
+    expect(runCommand('FACTORS 5')).toMatchObject({ view: { view: 'factors', region: 'US', years: 5 } })
+    expect(runCommand('FACTORS MARS').kind).toBe('error')
+    expect(runCommand('FACTORS US 500').kind).toBe('error')
+    expect(runCommand('COT')).toMatchObject({ kind: 'research', view: { view: 'cot', market: undefined } })
+    expect(runCommand('COT gold')).toMatchObject({ view: { view: 'cot', market: 'gold' } })
+    expect(runCommand('COT S&P 500')).toMatchObject({ view: { view: 'cot', market: 'S&P 500' } })
+    expect(runCommand('COT <script>').kind).toBe('error')
+    expect(runCommand('SWARM')).toMatchObject({ kind: 'swarm', preset: undefined, value: undefined })
+    expect(runCommand('SWARM investment_committee TSLA')).toMatchObject({ kind: 'swarm', preset: 'investment_committee', value: 'TSLA' })
+    expect(runCommand('SWARM commodity_research_team crude oil')).toMatchObject({ preset: 'commodity_research_team', value: 'crude oil' })
+    expect(runCommand('SWARM <x>').kind).toBe('error')
+  })
+  it('wins over tickers of the same name, with EQ as the way round', () => {
+    expect(runCommand('COT').kind).toBe('research')
+    expect(runCommand('EQ COT')).toMatchObject({ kind: 'ticker', symbol: 'COT' })
+  })
+})
+
+describe('COT contract names', () => {
+  it('accepts the punctuation real CFTC names use', () => {
+    expect(runCommand('COT MICRO E-MINI DJIA (x$0.5)')).toMatchObject({ view: { view: 'cot', market: 'MICRO E-MINI DJIA (x$0.5)' } })
+    expect(runCommand('COT <b>').kind).toBe('error')
+  })
+})
+
+describe('paper and alpha commands', () => {
+  it('fills in a paper order without sending it', () => {
+    expect(runCommand('PAPER')).toEqual({ kind: 'paper', message: 'Paper trading' })
+    expect(runCommand('paper buy aapl 10')).toMatchObject({ kind: 'paper', preset: { side: 'buy', symbol: 'AAPL', quantity: 10 } })
+    expect(runCommand('PAPER SELL BRK-B 1')).toMatchObject({ preset: { side: 'sell', symbol: 'BRK-B', quantity: 1 } })
+    for (const bad of ['PAPER BUY', 'PAPER BUY AAPL', 'PAPER BUY AAPL 1.5', 'PAPER BUY AAPL 0', 'PAPER BUY AAPL -3', 'PAPER SHORT AAPL 1', 'PAPER BUY <b> 1', 'PAPER BUY AAPL 1 2']) {
+      expect(runCommand(bad).kind).toBe('error')
+    }
+  })
+  it('opens the signal library, with or without a theme', () => {
+    expect(runCommand('ALPHA')).toMatchObject({ kind: 'alpha', message: 'Signal library' })
+    expect(runCommand('alpha Momentum')).toMatchObject({ kind: 'alpha', theme: 'momentum' })
+    expect(runCommand('ALPHA nonsense').kind).toBe('error')
+    expect(runCommand('ALPHA value extra').kind).toBe('error')
+  })
+})
+
+describe('commands from the added libraries', () => {
+  it('asks for one ticker for VOL and MOOD', () => {
+    expect(runCommand('vol spy')).toMatchObject({ kind: 'vol', symbol: 'SPY' })
+    expect(runCommand('MOOD BRK-B')).toMatchObject({ kind: 'mood', symbol: 'BRK-B' })
+    for (const bad of ['VOL', 'MOOD', 'VOL SPY QQQ', 'MOOD not!a!ticker']) expect(runCommand(bad).kind).toBe('error')
+  })
+  it('stores a bond coupon as a fraction', () => {
+    expect(runCommand('BOND 4.5 10')).toMatchObject({ kind: 'bond', coupon: 0.045, years: 10, price: undefined })
+    expect(runCommand('bond 3 5 97.5')).toMatchObject({ coupon: 0.03, years: 5, price: 97.5 })
+    for (const bad of ['BOND', 'BOND 4.5', 'BOND four 10', 'BOND 4.5 10 x', 'BOND 1 2 3 4']) expect(runCommand(bad).kind).toBe('error')
+  })
+  it('keeps FIND searches as typed', () => {
+    expect(runCommand('FIND')).toMatchObject({ kind: 'find', query: undefined })
+    expect(runCommand('find solar Panels')).toMatchObject({ kind: 'find', query: 'solar Panels' })
+    expect(runCommand(`FIND ${'x'.repeat(81)}`).kind).toBe('error')
+  })
+  it('passes a list of tickers to SCREEN', () => {
+    expect(runCommand('SCREEN')).toMatchObject({ kind: 'screen', symbols: undefined })
+    expect(runCommand('screen aapl 603020.SS')).toMatchObject({ kind: 'screen', symbols: ['AAPL', '603020.SS'] })
+    expect(runCommand(`SCREEN ${Array(101).fill('A').join(' ')}`).kind).toBe('error')
+  })
+  it('never starts AGENTS or QLIB from the command alone', () => {
+    expect(runCommand('AGENTS')).toEqual({ kind: 'agents', symbol: undefined, message: 'Trading agents' })
+    expect(runCommand('agents tsla')).toMatchObject({ kind: 'agents', symbol: 'TSLA' })
+    expect(runCommand('AGENTS TSLA NVDA').kind).toBe('error')
+    expect(runCommand('QLIB')).toMatchObject({ kind: 'qlib' })
+  })
+})
+
+describe('optimiser and report commands', () => {
+  it('parses OPTIM with its optional range', () => {
+    expect(runCommand('OPTIM SPY 60 TLT 40')).toMatchObject({ kind: 'optim', range: 'MAX', holdings: [{ symbol: 'SPY', weight: 60 }, { symbol: 'TLT', weight: 40 }] })
+    expect(runCommand('optim spy 60 tlt 40 5y')).toMatchObject({ kind: 'optim', range: '5Y' })
+    expect(runCommand('OPTIM')).toMatchObject({ kind: 'optim', holdings: [] })
+    for (const bad of ['OPTIM SPY', 'OPTIM SPY x TLT 40', 'OPTIM SPY -1 TLT 40', 'OPTIM SPY 60 TLT 40 1Y']) expect(runCommand(bad).kind).toBe('error')
+  })
+  it('parses REPORT, defaulting the benchmark to SPY', () => {
+    expect(runCommand('REPORT aapl')).toMatchObject({ kind: 'report', symbol: 'AAPL', benchmark: 'SPY', range: '5Y' })
+    expect(runCommand('REPORT AAPL QQQ MAX')).toMatchObject({ symbol: 'AAPL', benchmark: 'QQQ', range: 'MAX' })
+    expect(runCommand('REPORT AAPL 1Y')).toMatchObject({ symbol: 'AAPL', benchmark: 'SPY', range: '1Y' })
+    expect(runCommand('REPORT SPY')).toMatchObject({ symbol: 'SPY', range: '5Y' })
+    expect((runCommand('REPORT SPY') as { benchmark?: string }).benchmark).toBeUndefined()
+    for (const bad of ['REPORT', 'REPORT <b>', 'REPORT A B C']) expect(runCommand(bad).kind).toBe('error')
+  })
+})
+
+describe('READ command', () => {
+  it('finds the ticker, form and accession number', () => {
+    expect(runCommand('READ aapl')).toMatchObject({ kind: 'read', symbol: 'AAPL', form: '10-K' })
+    expect(runCommand('READ AAPL 10-q')).toMatchObject({ symbol: 'AAPL', form: '10-Q' })
+    expect(runCommand('READ AAPL DEF 14A')).toMatchObject({ form: 'DEF 14A' })
+    expect(runCommand('READ AAPL 8-K 0000320193-26-000024')).toMatchObject({ form: '8-K', accession: '0000320193-26-000024' })
+    expect(runCommand('READ BRK-B')).toMatchObject({ symbol: 'BRK-B' })
+    for (const bad of ['READ', 'READ <b>', 'READ AAPL <x>']) expect(runCommand(bad).kind).toBe('error')
+  })
+})

@@ -90,6 +90,19 @@ is stored only in your FinHub data folder and sent only to the provider you chos
 
 To use FinHub *from* Claude instead, see [AI_ASSISTANTS.md](AI_ASSISTANTS.md).
 
+## 5. Optional: extra engines
+
+`SYS` lists three more engines. Each stays out of the way until you press **Install**, and each lives in its own environment:
+
+| Engine | For | Disk | Notes |
+|---|---|---|---|
+| finBERT | `MOOD` | about 1.1 GB, plus 420 MB for the model on first use | The model is licensed for non-commercial use (CC BY-NC-SA 4.0) and isn't part of FinHub |
+| Qlib | `QLIB` | about 800 MB | Installs its own copy of Python 3.12 |
+| TradingAgents | `AGENTS` | about 200 MB | Also needs an AI provider, set with `AI` |
+
+Lean, QuantConnect's backtesting engine, isn't included. Its command-line tool needs Docker and a QuantConnect account, which
+you'd set up yourself: see [its docs](https://www.quantconnect.com/docs/v2/lean-cli).
+
 ## Where FinHub keeps its files
 
 | System | Folder |
@@ -99,7 +112,7 @@ To use FinHub *from* Claude instead, see [AI_ASSISTANTS.md](AI_ASSISTANTS.md).
 | Linux | `~/.local/share/app.finhub.terminal` |
 
 Inside: `envs/` (its private Python environments), `logs/` (start here if something goes wrong),
-`agent-settings.json`, `watchlist.json`, `alerts.json`, `portfolio.json`, and `vibe-trading/` (saved agent runs).
+`agent-settings.json`, `watchlist.json`, `alerts.json`, `portfolio.json`, `sec-identity.json`, and `vibe-trading/` (saved agent runs).
 
 ## Troubleshooting
 

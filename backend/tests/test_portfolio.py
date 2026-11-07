@@ -1,5 +1,5 @@
 import json
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -243,3 +243,12 @@ def test_damaged_ledger_is_reported_not_hidden(worker, data_folder):
     (data_folder / "portfolio.json").write_text("{broken", encoding="utf-8")
     res = client.get("/portfolio")
     assert res.status_code == 500 and "damaged" in res.json()["detail"]
+
+
+def test_trade_dates_follow_this_computers_calendar_not_utc(data_folder, monkeypatch):
+    # The form offers the local date. East of UTC, that is often already tomorrow in UTC terms.
+    monkeypatch.setattr(portfolio, "_today", lambda: date(2026, 11, 8))
+    assert portfolio.add("AAPL", "buy", 1, 100, day="2026-11-08")["date"] == "2026-11-08"
+    assert portfolio.add("AAPL", "buy", 1, 100)["date"] == "2026-11-08"
+    with pytest.raises(portfolio.LedgerError, match="future"):
+        portfolio.add("AAPL", "buy", 1, 100, day="2026-11-09")

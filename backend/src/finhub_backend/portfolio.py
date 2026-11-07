@@ -106,6 +106,11 @@ def replay(transactions: list[dict]) -> dict[str, dict]:
     return books
 
 
+def _today() -> date:
+    """Today on this computer's calendar, which is the date the trade form offers. UTC can be a day either side."""
+    return date.today()
+
+
 # Far beyond any real trade, and small enough that multiplying these can't overflow into a value the API can't send.
 MAX_AMOUNT = 1e15
 
@@ -128,9 +133,9 @@ def _clean(symbol: str, side: str, quantity: float, price: float | None, fees: f
         raise LedgerError("fees must be zero or more")
     if max(quantity, price, fees) > MAX_AMOUNT:
         raise LedgerError("that number is too large to record")
-    day = day or datetime.now(UTC).date().isoformat()
+    day = day or _today().isoformat()
     try:
-        if date.fromisoformat(day) > datetime.now(UTC).date():
+        if date.fromisoformat(day) > _today():
             raise LedgerError("the trade date is in the future")
     except ValueError as exc:
         if isinstance(exc, LedgerError):

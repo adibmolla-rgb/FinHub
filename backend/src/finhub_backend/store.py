@@ -59,6 +59,37 @@ def set_watchlist(symbols: list[str]) -> list[str]:
 _ID = re.compile(r"^[A-Za-z0-9_\-]{1,80}$")
 
 
+def _sec_identity_path() -> Path:
+    return data_dir() / "sec-identity.json"
+
+
+def get_sec_identity() -> dict | None:
+    try:
+        data = json.loads(_sec_identity_path().read_text(encoding="utf-8"))
+        return {"name": data["name"], "email": data["email"]} if data.get("name") and data.get("email") else None
+    except (OSError, ValueError, TypeError, KeyError):
+        return None
+
+
+def set_sec_identity(name: str, email: str) -> dict:
+    """The name and email the SEC asks automated tools to declare. Kept on this computer, sent only to the SEC."""
+    name, email = " ".join(name.split()), email.strip()
+    if not 1 <= len(name) <= 100:
+        raise ValueError("enter your name")
+    if not re.fullmatch(r"[^@\s]{1,100}@[^@\s]+\.[^@\s]+", email) or len(email) > 200:
+        raise ValueError("enter a valid email")
+    path = _sec_identity_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_suffix(".tmp")
+    tmp.write_text(json.dumps({"name": name, "email": email}), encoding="utf-8")
+    try:
+        os.chmod(tmp, 0o600)
+    except OSError:
+        pass
+    os.replace(tmp, path)
+    return {"name": name, "email": email}
+
+
 def _sessions_dir() -> Path:
     return data_dir() / "vibe-trading" / "sessions"
 

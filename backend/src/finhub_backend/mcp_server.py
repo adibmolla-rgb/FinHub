@@ -14,6 +14,7 @@ from typing import Literal
 
 import httpx
 from mcp.server.mcpserver import MCPServer
+from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
 from finhub_backend import options
@@ -39,7 +40,7 @@ server = MCPServer(
 )
 
 
-class FinHubUnavailable(RuntimeError):
+class FinHubUnavailable(ToolError):
     pass
 
 
@@ -63,7 +64,7 @@ def _call(method: str, path: str, **kwargs) -> dict | list:
         msg = f"FinHub error ({res.status_code}): {detail}"
         if tried:
             msg += " | providers tried: " + "; ".join(f"{a['provider']}: {a.get('error') or 'ok'}" for a in tried)
-        raise RuntimeError(msg)
+        raise ToolError(msg)  # other exceptions reach the assistant with their message removed
     return body
 
 
@@ -253,6 +254,118 @@ def finhub_yield_curve() -> dict:
     earlier, and the 10y-2y and 10y-3m spreads in basis points. unit_kind 'fraction' means 0.042 = 4.2%;
     'as_reported' means the provider declared no unit: quote it verbatim."""
     return _call("GET", "/research/curve")
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_volatility(symbol: str, range: Literal["5Y", "MAX"] = "MAX") -> dict:
+    """GARCH(1,1) volatility forecasts for 1, 5 and 21 days, its current and long-run volatility, and a monthly check of
+    whether it beat simply assuming last month carries on. Fractions. Needs the agent engine, no AI."""
+    res = _call("POST", "/lab/volatility", json={"symbol": symbol, "range": range})
+    res.pop("series", None)
+    return res
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_bond(coupon: float, years: float, price: float | None = None) -> dict:
+    """Value a fixed-rate bond with QuantLib. coupon is a FRACTION (0.045 = 4.5%), price is per 100 of face value and
+    optional. Gives yield to maturity, durations, convexity, DV01 and its value on the current Treasury curve."""
+    return _call("POST", "/lab/bond", json={"coupon": coupon, "years": years, "price": price})
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_find_symbols(query: str = "", kind: Literal["equities", "etfs"] = "equities", country: str | None = None, sector: str | None = None, market_cap: str | None = None, limit: int = 50) -> dict:
+    """Search about 70,000 stocks and ETFs worldwide by name, ticker or description, and filter by country, sector and
+    size (Mega Cap, Large Cap, Mid Cap, Small Cap, Micro Cap, Nano Cap). A reference list, not live data."""
+    params = {"query": query, "kind": kind, "limit": limit, **{k: v for k, v in (("country", country), ("sector", sector), ("market_cap", market_cap)) if v}}
+    return _call("GET", "/find", params=params)
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_news_sentiment(symbol: str) -> dict:
+    """finBERT's reading of the tone of a symbol's latest headlines: positive, neutral or negative for each, with scores.
+    Needs the optional finBERT engine from SYS. Headlines can be about something else, and this is not a trading signal."""
+    return _call("POST", "/lab/mood", json={"symbol": symbol})
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_read_filing(symbol: str, form: str = "10-K", section: str | None = None) -> dict:
+    """Read a company's latest SEC filing of a form (10-K, 10-Q, 8-K, DEF 14A). Without `section`, lists the filing's
+    sections and their lengths. Give a section's id to get its text, unchanged. Filings can be very long, so read only
+    the sections you need. The user must have entered their SEC name and email in the app first (READ command)."""
+    filing = _call("GET", "/research/read", params={"symbol": symbol, "form": form})
+    sections = filing.pop("sections")
+    filing["sections"] = [{"id": s["id"], "title": s["title"], "characters": len(s["text"])} for s in sections]
+    if section is not None:
+        found = next((s for s in sections if s["id"] == section), None)
+        if found is None:
+            raise ToolError(f"no section {section!r}; use one of the ids listed by calling this without a section")
+        filing["text"] = found["text"]
+    return filing
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_optimise(holdings: dict[str, float], range: Literal["5Y", "MAX"] = "MAX") -> dict:
+    """Test ways of choosing portfolio weights on data they haven't seen: each method fits on the past year and holds
+    for the next quarter, repeatedly, against the given weights. Gives return, volatility, Sharpe and worst fall for the
+    held periods only, and each method's weights today. Fractions, before trading costs. Needs the agent engine, no AI."""
+    return _call("POST", "/lab/optimise", json={"holdings": [{"symbol": s, "weight": w} for s, w in holdings.items()], "range": range})
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_performance_report(symbol: str, benchmark: str | None = "SPY", range: Literal["1Y", "5Y", "MAX"] = "5Y") -> dict:
+    """Performance statistics for a ticker, optionally against a benchmark: return, volatility, Sharpe, Sortino, drawdowns,
+    tail risk, alpha and beta, worst falls and returns by month. Fractions. Needs the agent engine, no AI."""
+    return _call("POST", "/lab/report", json={"symbol": symbol, "benchmark": benchmark, "range": range})
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_paper_accounts() -> dict:
+    """The user's paper trading accounts in FinHub: practice accounts with fake money and no broker. Lists them, with
+    each one's value, cash, return, positions, orders waiting to fill and trades. Orders can only be placed in the app."""
+    accounts = _call("GET", "/paper/accounts")
+    return {"accounts": [_call("GET", f"/paper/accounts/{a['id']}") for a in accounts]}
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_alpha_library(zoo: Literal["academic", "alpha101", "fundamental", "qlib158"] = "academic", theme: str | None = None) -> dict:
+    """The signal library: published ways of predicting stock returns, with each one's theme and how long it takes to
+    fade. Also returns saved test results (correlation with next returns on the S&P 500, which carry a survivorship
+    warning). Tests themselves are started in the app, because they take minutes."""
+    params = {"zoo": zoo, **({"theme": theme} if theme else {})}
+    return {"library": _call("GET", "/alpha/library", params=params), "saved_tests": _call("GET", "/alpha/runs")}
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_factors(region: Literal["US", "NA", "EUROPE", "JAPAN", "ASIA", "DEVELOPED", "EXUS", "EMERGING"] = "US", years: int = 30) -> dict:
+    """Fama-French factor returns: market, size, value, profitability, investment and momentum, from Kenneth
+    French's Data Library. Each has its latest month, last 12 months, average yearly return, volatility and
+    t-statistic. Returns are FRACTIONS (0.01 = 1%) and paper portfolios before trading costs."""
+    res = _call("GET", "/research/factors", params={"region": region, "years": years})
+    res.pop("rows", None)
+    for factor in res.get("factors", []):
+        factor.pop("curve", None)
+    return res
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_cot(market: str | None = None) -> dict:
+    """CFTC Commitments of Traders: who holds futures positions. With no market, an overview of 34 major markets.
+    With one (a name like "Gold", "S&P 500", "WTI Oil" or a contract search), net positions for large speculators,
+    small speculators and commercials, each with its share of open interest and a 0-100 score against its own
+    recent range. Shares are FRACTIONS. Check `market` in the reply: a search can match a similar contract."""
+    return _call("GET", "/research/cot", params={"market": market} if market else None)
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_fed() -> dict:
+    """US monetary conditions from the Federal Reserve: effective funds rate and target range, SOFR, M1 and M2 with
+    M2's yearly growth, professional forecasters' inflation expectations and an approximate real rate. Rates are
+    FRACTIONS (0.04 = 4%)."""
+    res = _call("GET", "/research/fed")
+    for section in ("rates", "money", "expectations"):
+        if isinstance(res.get(section), dict):
+            res[section].pop("series", None)
+    return res
 
 
 @server.tool(annotations=READ_ONLY)

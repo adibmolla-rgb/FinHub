@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -86,7 +87,7 @@ def test_stdio_protocol_end_to_end():
         assert {"finhub_quote", "finhub_history", "finhub_backtest", "finhub_portfolio_risk", "finhub_price_option", "finhub_watchlist",
                 "finhub_arena_state", "finhub_arena_order", "finhub_arena_cancel", "finhub_arena_advance",
                 "finhub_fundamentals", "finhub_macro", "finhub_screen", "finhub_add_alert", "finhub_alerts",
-                "finhub_ownership", "finhub_options_chain", "finhub_calendar", "finhub_filings", "finhub_etf_holdings", "finhub_yield_curve", "finhub_portfolio"} <= set(tools)
+                "finhub_volatility", "finhub_bond", "finhub_find_symbols", "finhub_news_sentiment", "finhub_read_filing", "finhub_optimise", "finhub_performance_report", "finhub_paper_accounts", "finhub_alpha_library", "finhub_factors", "finhub_cot", "finhub_fed", "finhub_ownership", "finhub_options_chain", "finhub_calendar", "finhub_filings", "finhub_etf_holdings", "finhub_yield_curve", "finhub_portfolio"} <= set(tools)
         assert tools["finhub_add_alert"]["annotations"]["readOnlyHint"] is False
         assert tools["finhub_arena_order"]["annotations"]["readOnlyHint"] is False
         assert "SIMULATED" in tools["finhub_arena_order"]["description"]
@@ -142,3 +143,51 @@ def test_alert_and_screen_tools_go_through_the_app(monkeypatch, tmp_path):
     monkeypatch.setattr(market, "quote", lambda s: (_ for _ in ()).throw(market.MarketDataError("offline", [])))
     out = mcp_server.finhub_screen(universe="custom", symbols=["AAA", "BBB"], min_change=0.01)
     assert out["matches"] == [] and {f["symbol"] for f in out["failed"]} == {"AAA", "BBB"}
+
+
+def test_an_assistant_is_told_why_a_tool_failed():
+    # The SDK replaces any exception but ToolError with "Error executing tool <name>".
+    proc = subprocess.Popen(
+        [sys.executable, "-c", "from finhub_backend.mcp_server import main; main()"], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL, text=True, encoding="utf-8", env={**os.environ, "FINHUB_BACKEND_URL": "http://127.0.0.1:9"},
+    )
+    try:
+        def ask(message):
+            proc.stdin.write(json.dumps({"jsonrpc": "2.0", **message}) + "\n")
+            proc.stdin.flush()
+
+        def answer(wanted):
+            for line in proc.stdout:
+                reply = json.loads(line)
+                if reply.get("id") == wanted:
+                    return reply
+            raise AssertionError("no reply")
+
+        ask({"id": 1, "method": "initialize", "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "0"}}})
+        answer(1)
+        ask({"method": "notifications/initialized"})
+        ask({"id": 2, "method": "tools/call", "params": {"name": "finhub_watchlist", "arguments": {}}})
+        result = answer(2)["result"]
+        assert result["isError"] is True
+        assert "Open the FinHub app" in result["content"][0]["text"]
+    finally:
+        proc.stdin.close()
+        proc.wait(timeout=10)
+
+
+def test_provider_errors_carry_their_reason(monkeypatch):
+    from mcp.server.mcpserver.exceptions import ToolError
+
+    class Client:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return False
+
+        def request(self, method, path, **kwargs):
+            return httpx.Response(502, json={"error": "no provider could serve quote", "attempts": [{"provider": "yahoo", "ok": False, "error": "NoData"}]})
+
+    monkeypatch.setattr(mcp_server, "_client", Client)
+    with pytest.raises(ToolError, match="no provider could serve quote.*yahoo: NoData"):
+        mcp_server.finhub_quote("ZZZ")

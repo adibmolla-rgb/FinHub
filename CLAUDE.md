@@ -1,4 +1,4 @@
-# CLAUDE.md: working on FinHub
+﻿# CLAUDE.md: working on FinHub
 
 Guidance for Claude Code (and people) changing this repository. For *using* FinHub from Claude, see
 [docs/AI_ASSISTANTS.md](docs/AI_ASSISTANTS.md).
@@ -22,7 +22,12 @@ app/                           Tauri 2 + React 19 + TypeScript (Vite)
   src/App.tsx                  Workspaces, command dispatch, polling (health, engines, sources, alerts).
   src/commands.ts              Command parser + COMMANDS table (drives HELP and suggestions).
   src/api.ts                   Typed client for every backend endpoint; formatValue() renders receipts.
-  src/Research.tsx             The six research panels.
+  src/Research.tsx             The research panels.
+  src/Swarm.tsx                SWARM: Vibe-Trading's teams of agents.
+  src/Paper.tsx, src/Alpha.tsx PAPER and ALPHA.
+  src/Lab.tsx, src/Read.tsx    OPTIM and REPORT; READ.
+  src/Measures.tsx, src/Find.tsx  VOL, BOND and MOOD; FIND.
+  src/LongRuns.tsx             AGENTS and QLIB, which run in the background.
   src/Portfolio.tsx            PORT.
   src/links.ts                 Sends external links to the browser; the webview drops them otherwise.
   src/quant/                   options.ts, indicators.ts, compare.ts (pure maths, unit-tested) and screens.
@@ -35,18 +40,24 @@ backend/src/finhub_backend/
   receipts.py                  Quantity/Unit/Source. Unit-safe arithmetic; AS_REPORTED never converts.
   engines.py, installer.py     Engine registry, probes and installs (uv sync into app-data envs).
   worker_client.py             JSON-lines client for the long-lived data worker subprocess.
-  market.py                    Quotes/history/profile/news → receipts; provider attempts and health.
+  market.py                    Quotes/history/profile/news â†’ receipts; provider attempts and health.
   backtest.py, risk.py         numpy analytics (see the rules below).
   fundamentals.py, macro.py    Statement ratios and OECD series with receipts.
   portfolio.py                 PORT: the trade ledger, FIFO cost basis and valuation.
-  research.py                  OWN, CHAIN, CAL, FILINGS, ETF and CURVE: raw rows to summaries with receipts.
+  paper.py, alpha.py           PAPER (holds orders until their fill day) and ALPHA (follows and saves signal tests).
+  lab.py                       OPTIM, REPORT, VOL, BOND, MOOD and ALPHA's deep look: one process per job in an engine's environment.
+  jobs.py                      Background runs for AGENTS and QLIB, one of each kind at a time, saved in the data folder.
+  research.py                  OWN, CHAIN, CAL, FILINGS, ETF, CURVE, FACTORS, COT and FED: raw rows to summaries with receipts.
   screener.py, alerts.py       Screener over an explicit universe; one-shot alerts + background loop.
   sim.py                       Python port of the simulator: the shared ARENA market.
   agent.py, store.py           Vibe-Trading agent process + settings; watchlist and saved agent runs.
   mcp_server.py                finhub-mcp (MCP SDK 2.x, stdio). Tools call the HTTP API.
 engines/openbb/                Isolated env (OpenBB + Apache-licensed extensions + yfinance)
   worker.py, providers.py      Data worker: provider chains, JSON lines over stdin/stdout.
-engines/vibe-trading/          Isolated env (Vibe-Trading[anthropic]); serve.py runs its API server.
+engines/vibe-trading/          Isolated env (Vibe-Trading[anthropic], skfolio, QuantStats, Alphalens, arch, QuantLib); serve.py runs its
+                               API server, lab.py runs one analysis.
+engines/sentiment, tradingagents, qlib/  Optional isolated envs, installed from SYS (`optional=True` in engines.py); job.py runs one job.
+engines/job_runner.py          Shared by job scripts: JSON in and out, and stopping if the backend goes away.
 ```
 
 Why engines are isolated: OpenBB 5 needs `fastmcp>=4`, Vibe-Trading needs `fastmcp<4`, and
@@ -57,16 +68,17 @@ it runs them as subprocesses that exit when their stdin closes.
 
 ```bash
 # Backend
-cd backend && uv sync && uv run pytest -q            # 141 tests
+cd backend && uv sync && uv run pytest -q            # 295 tests
 uv run finhub-backend                                 # API on 127.0.0.1:8765
 uv run finhub-mcp                                     # MCP server (stdio)
 
 # Data worker
-cd engines/openbb && uv sync && uv run pytest -q      # 36 tests (network-free)
+cd engines/openbb && uv sync && uv run pytest -q      # 54 tests (network-free)
+cd engines/vibe-trading && uv run --with pytest pytest -q tests  # 10 tests: arch and QuantLib against worked answers
 
 # App
 cd app && pnpm install
-pnpm test        # vitest: 85 tests (maths, parser, course content, file-name clash check)
+pnpm test        # vitest: 98 tests (maths, parser, course content, file-name clash check)
 pnpm lint
 pnpm build       # tsc + vite (also what CI's tauri build runs first)
 pnpm build:web   # static web demo into dist-web/
@@ -90,30 +102,40 @@ Release; `pages.yml` (manual) publishes the web demo.
 2. **No module names that differ only by case or `.ts`/`.tsx`** (e.g. `options.ts` + `Options.tsx`).
    They collide on Windows/macOS and break the build there while passing on Linux. `src/names.test.ts`
    and a CI step enforce this.
-3. **Next-bar fills.** In `backtest.simulate`, the position over return r[i] is `target[i-1]`. Costs are
+3. **Next-bar fills.** Vibe-Trading's paper ledger fills at the close of any day it's given, including one already
+   closed, so `paper.py` keeps orders until the first close still ahead when they were placed. In `backtest.simulate`, the position over return r[i] is `target[i-1]`. Costs are
    charged multiplicatively at the fill: `(1 - cost) * (1 + gross) - 1`.
 4. **OpenBB calls run on one thread** (`on_obb_thread`): its provider locks are bound to an event loop.
 5. **Simulator market maker** learns fair value from trade prices and signed order flow; it must not
-   anchor on the last mid (its own skewed quotes → runaway drift). Track trades by id, not index (the
+   anchor on the last mid (its own skewed quotes â†’ runaway drift). Track trades by id, not index (the
    trade log is trimmed). Keep ticks (ints) and display prices separate.
 6. **Child processes on Windows** need `CREATE_NO_WINDOW` (`engines.NO_WINDOW`, `hidden()` in lib.rs).
 7. **Claude 5-family models** reject non-default temperature; `agent.agent_env` sets 1 for them.
 8. **Licences.** Only depend on Apache/MIT/BSD code. OpenBB's yfinance extension is AGPL: use the
-   `yfinance` library directly. Never copy code from FinceptTerminal (AGPL, trademark).
+   `yfinance` library directly. edgartools asks for the GPL `unidecode`, so `override-dependencies` keeps it out and
+   `engines/openbb/unidecode.py` stands in. arch is NCSA, which is BSD-like. finBERT's model weights are CC BY-NC-SA 4.0: they're downloaded on first use, never shipped, and the UI says they're non-commercial. Never put a personal SEC identity in the repo: it lives in the data folder. Never copy code from FinceptTerminal (AGPL, trademark).
 9. **Missing data fails closed.** A failed quote never fires an alert; a screener row missing a
    filtered field is excluded; a ratio with a missing input is omitted; nothing is guessed.
 10. **Never fake data in the UI.** Tests and screenshots may use synthetic data, clearly labelled.
 11. **No worker during an engine install.** A package folder without its `__init__.py` yet imports as an
     empty namespace package, and that process keeps it for life. `installer` holds the worker during `uv sync`.
-12. **The worker's child processes must not inherit its request pipe.** On Windows they hang while the worker
-    blocks reading it, and OpenBB runs `git` as it loads. Test engine changes with a lone request as well as
-    in the app, whose polling hides this kind of hang.
+12. **Never block on the real stdin in an engine process.** On Windows, anything else touching that pipe hangs:
+    OpenBB's `git` child, and Vibe-Trading's import while it loads a compiled module. Read a private `os.dup` and
+    put NUL on fd 0, as `worker.py` and `serve.py` do. Test engine changes with a lone request as well as in the
+    app, whose polling hides this kind of hang.
 13. **Providers can answer a different question in the same shape.** Asked for a stock's ETF holdings, Nasdaq
-    returns the funds that hold it. Check live output for wrong inputs too, not just right ones. Try the
+    returns the funds that hold it. Given a name rather than a code, OpenBB's COT positioning returns one row per
+    similar contract, which looks like a short history. OpenBB's `money_measures(adjusted=True)` returns the unadjusted
+    series. Compare new data with the publisher's own numbers. Check live output for wrong inputs too, not just right ones. Try the
     popular tickers as well: OpenBB's Cboe reader works on AAPL but crashes on SPY, TSLA and NVDA.
 14. **Test upgrades, not just fresh installs.** `uv sync` decides whether to reinstall the backend from
     `tool.uv.cache-keys`, and Windows file copies keep modified times. Without the source in those keys, an
     upgrade leaves the old backend running behind the new UI.
+
+15. **A job that spends money must die with the app.** The shell kills only the backend, so a child process carries on. `lab.run`
+    keeps the job's stdin open and `job_runner` stops when it closes. Anything that uses an AI provider also waits for a Start press.
+16. **`UV_PYTHON` on a person's computer beats `.python-version`.** Qlib has no packages for Python 3.13, so `installer._sync` sets it
+    from the engine's own `.python-version`. Install through the installer to test this; `uv sync` in a clean shell won't show it.
 
 ## Adding things
 
@@ -135,7 +157,8 @@ Release; `pages.yml` (manual) publishes the web demo.
 
 ## Data and environment notes
 
-- Data sources (no keys): Yahoo via yfinance; Cboe, Nasdaq, TMX, FINRA, SEC, OECD via OpenBB.
+- Data sources (no keys): FinanceDatabase's lists on GitHub; Yahoo via yfinance; Cboe, Nasdaq, TMX, FINRA, SEC, OECD, Federal Reserve, CFTC and
+  Fama-French via OpenBB; the Treasury and Cboe's delayed feed directly.
 - App data folder: `FINHUB_DATA_DIR` (set by the shell to the OS app-data dir; `~/.finhub` in dev).
 - `FINHUB_SKIP_WARMUP=1` disables background warm-up and the alerts loop (tests set it).
 - Vibe-Trading reads `LANGCHAIN_PROVIDER`, `LANGCHAIN_MODEL_NAME`, provider keys and `VIBE_TRADING_HOME`.

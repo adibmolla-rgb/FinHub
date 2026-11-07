@@ -15,6 +15,14 @@ import { ArenaWorkspace } from './sim/Arena'
 import { MacroWorkspace } from './Macro'
 import { ResearchWorkspace, type ResearchView } from './Research'
 import { PortfolioWorkspace } from './Portfolio'
+import { SwarmWorkspace } from './Swarm'
+import { PaperWorkspace, type PaperPreset } from './Paper'
+import { AlphaWorkspace } from './Alpha'
+import { FindWorkspace } from './Find'
+import { OptimWorkspace, ReportWorkspace } from './Lab'
+import { AgentsWorkspace, QlibWorkspace } from './LongRuns'
+import { BondWorkspace, MoodWorkspace, VolWorkspace } from './Measures'
+import { ReadWorkspace } from './Read'
 import { openExternalLinksInBrowser } from './links'
 import { AlertsWorkspace } from './Alerts'
 import { ScreenerWorkspace } from './Screener'
@@ -53,9 +61,21 @@ type Workspace =
   | { kind: 'learn' }
   | { kind: 'macro'; country: string; nonce: number }
   | { kind: 'research'; view: ResearchView; nonce: number }
+  | { kind: 'swarm'; preset?: string; value?: string; nonce: number }
+  | { kind: 'paper'; preset?: PaperPreset; nonce: number }
+  | { kind: 'alpha'; theme?: string; nonce: number }
+  | { kind: 'vol'; symbol: string; nonce: number }
+  | { kind: 'bond'; coupon: number; years: number; price?: number; nonce: number }
+  | { kind: 'find'; query?: string; nonce: number }
+  | { kind: 'mood'; symbol: string; nonce: number }
+  | { kind: 'agents'; symbol?: string; nonce: number }
+  | { kind: 'qlib'; nonce: number }
+  | { kind: 'read'; symbol: string; form: string; accession?: string; nonce: number }
+  | { kind: 'optim'; holdings: { symbol: string; weight: number }[]; range: string; nonce: number }
+  | { kind: 'report'; symbol: string; benchmark?: string; range: string; nonce: number }
   | { kind: 'portfolio' }
   | { kind: 'alerts' }
-  | { kind: 'screen' }
+  | { kind: 'screen'; symbols?: string[]; nonce: number }
   | { kind: 'opt'; symbol?: string; nonce: number }
   | { kind: 'backtest'; preset: BacktestPreset; nonce: number }
   | { kind: 'risk'; holdings: { symbol: string; weight: number }[]; nonce: number }
@@ -290,7 +310,25 @@ export default function App() {
         setWorkspace({ kind: 'mcp' })
         break
       case 'screen':
-        setWorkspace({ kind: 'screen' })
+        setWorkspace({ kind: 'screen', symbols: result.symbols, nonce: Date.now() })
+        break
+      case 'vol':
+        setWorkspace({ kind: 'vol', symbol: result.symbol, nonce: Date.now() })
+        break
+      case 'bond':
+        setWorkspace({ kind: 'bond', coupon: result.coupon, years: result.years, price: result.price, nonce: Date.now() })
+        break
+      case 'find':
+        setWorkspace({ kind: 'find', query: result.query, nonce: Date.now() })
+        break
+      case 'mood':
+        setWorkspace({ kind: 'mood', symbol: result.symbol, nonce: Date.now() })
+        break
+      case 'agents':
+        setWorkspace({ kind: 'agents', symbol: result.symbol, nonce: Date.now() })
+        break
+      case 'qlib':
+        setWorkspace({ kind: 'qlib', nonce: Date.now() })
         break
       case 'alerts':
         setWorkspace({ kind: 'alerts' })
@@ -310,6 +348,24 @@ export default function App() {
             setLog((l) => [{ at: new Date(), input, message: `Not recorded: ${e.message}`, ok: false }, ...l])
           })
         }
+        break
+      case 'read':
+        setWorkspace({ kind: 'read', symbol: result.symbol, form: result.form, accession: result.accession, nonce: Date.now() })
+        break
+      case 'optim':
+        setWorkspace({ kind: 'optim', holdings: result.holdings, range: result.range, nonce: Date.now() })
+        break
+      case 'report':
+        setWorkspace({ kind: 'report', symbol: result.symbol, benchmark: result.benchmark, range: result.range, nonce: Date.now() })
+        break
+      case 'paper':
+        setWorkspace({ kind: 'paper', preset: result.preset, nonce: Date.now() })
+        break
+      case 'alpha':
+        setWorkspace({ kind: 'alpha', theme: result.theme, nonce: Date.now() })
+        break
+      case 'swarm':
+        setWorkspace({ kind: 'swarm', preset: result.preset, value: result.value, nonce: Date.now() })
         break
       case 'research':
         setWorkspace({ kind: 'research', view: result.view, nonce: Date.now() })
@@ -385,7 +441,8 @@ export default function App() {
     }
   }
 
-  const ready = engines?.filter((e) => e.available).length ?? 0
+  const required = engines?.filter((e) => !e.optional) ?? []  // an optional engine that isn't installed isn't a fault
+  const ready = required.filter((e) => e.available).length
   const failing = sources?.filter((s) => s.status === 'failing').length ?? 0
 
   return (
@@ -462,21 +519,45 @@ export default function App() {
           onOpenSettings={() => setWorkspace({ kind: 'ai' })}
         />
       ) : workspace.kind === 'risk' ? (
-        <RiskWorkspace key={workspace.nonce} initial={workspace.holdings} />
+        <RiskWorkspace key={workspace.nonce} initial={workspace.holdings} onOpen={(cmd) => submit(cmd)} />
       ) : workspace.kind === 'backtest' ? (
-        <BacktestWorkspace key={workspace.nonce} preset={workspace.preset} />
+        <BacktestWorkspace key={workspace.nonce} preset={workspace.preset} onReceipt={setReceipt} />
       ) : workspace.kind === 'opt' ? (
         <OptionsWorkspace key={workspace.nonce} symbol={workspace.symbol} />
       ) : workspace.kind === 'notes' ? (
         <NotesWorkspace key={workspace.nonce} onRerun={(cmd) => submit(cmd)} />
       ) : workspace.kind === 'screen' ? (
-        <ScreenerWorkspace onOpen={(s) => submit(s)} onReceipt={setReceipt} />
+        <ScreenerWorkspace key={workspace.nonce} symbols={workspace.symbols} onOpen={(s) => submit(s)} onReceipt={setReceipt} />
+      ) : workspace.kind === 'vol' ? (
+        <VolWorkspace key={workspace.nonce} symbol={workspace.symbol} onReceipt={setReceipt} />
+      ) : workspace.kind === 'bond' ? (
+        <BondWorkspace key={workspace.nonce} coupon={workspace.coupon} years={workspace.years} price={workspace.price} onReceipt={setReceipt} />
+      ) : workspace.kind === 'find' ? (
+        <FindWorkspace key={workspace.nonce} query={workspace.query} onOpen={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'mood' ? (
+        <MoodWorkspace key={workspace.nonce} symbol={workspace.symbol} onReceipt={setReceipt} />
+      ) : workspace.kind === 'agents' ? (
+        <AgentsWorkspace key={workspace.nonce} symbol={workspace.symbol} />
+      ) : workspace.kind === 'qlib' ? (
+        <QlibWorkspace key={workspace.nonce} onReceipt={setReceipt} onOpen={(cmd) => submit(cmd)} />
       ) : workspace.kind === 'alerts' ? (
         <AlertsWorkspace version={alertsVersion} />
       ) : workspace.kind === 'macro' ? (
         <MacroWorkspace key={workspace.nonce} country={workspace.country} onReceipt={setReceipt} />
       ) : workspace.kind === 'portfolio' ? (
         <PortfolioWorkspace key={refreshKey} version={portfolioVersion} onReceipt={setReceipt} onOpen={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'read' ? (
+        <ReadWorkspace key={workspace.nonce} symbol={workspace.symbol} form={workspace.form} accession={workspace.accession} onOpen={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'optim' ? (
+        <OptimWorkspace key={workspace.nonce} holdings={workspace.holdings} range={workspace.range} onReceipt={setReceipt} onOpen={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'report' ? (
+        <ReportWorkspace key={workspace.nonce} symbol={workspace.symbol} benchmark={workspace.benchmark} range={workspace.range} onReceipt={setReceipt} />
+      ) : workspace.kind === 'paper' ? (
+        <PaperWorkspace key={workspace.nonce} preset={workspace.preset} onReceipt={setReceipt} onOpen={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'alpha' ? (
+        <AlphaWorkspace key={workspace.nonce} theme={workspace.theme} />
+      ) : workspace.kind === 'swarm' ? (
+        <SwarmWorkspace key={workspace.nonce} preset={workspace.preset} value={workspace.value} onOpen={(cmd) => submit(cmd)} />
       ) : workspace.kind === 'research' ? (
         <ResearchWorkspace key={`${workspace.nonce}-${refreshKey}`} view={workspace.view} onReceipt={setReceipt} onOpen={(cmd) => submit(cmd)} />
       ) : workspace.kind === 'learn' ? (
@@ -551,7 +632,7 @@ export default function App() {
         ) : (
           <span className={online ? 'ok' : 'bad'}>● {online ? 'backend online' : 'backend offline'}</span>
         )}
-        {!WEB_DEMO && <span className="muted">engines {engines ? `${ready}/${engines.length} ready` : '—'}</span>}
+        {!WEB_DEMO && <span className="muted">engines {engines ? `${ready}/${required.length} ready` : '—'}</span>}
         {!WEB_DEMO && <span className={failing ? 'warn' : 'muted'}>
           data sources {sources?.length ? `${sources.length - failing}/${sources.length} ok` : '—'}
         </span>}

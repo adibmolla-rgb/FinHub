@@ -12,6 +12,7 @@ import csv
 import io
 import json
 import math
+import os
 import re
 import time
 import urllib.request
@@ -40,11 +41,25 @@ CHAINS: dict[str, list[str]] = {
     "filings": ["sec"],
     "etf_holdings": ["nasdaq"],
     "yield_curve": ["treasury", "federal_reserve"],
+    "factors": ["famafrench"],
+    "cot_overview": ["cftc"],
+    "cot_market": ["cftc"],
+    "fed_rates": ["federal_reserve"],
+    "fed_money": ["federal_reserve_h6"],
+    "fed_expectations": ["federal_reserve"],
+    "filing_text": ["edgar"],
+    "find_symbols": ["financedatabase"],
+    "find_options": ["financedatabase"],
 }
 
 PROVIDER_NAMES = {
     "cboe_direct": "Cboe delayed quotes (cdn.cboe.com)",
     "treasury": "US Treasury (home.treasury.gov)",
+    "famafrench": "Kenneth French Data Library (via OpenBB)",
+    "edgar": "SEC EDGAR (via edgartools)",
+    "financedatabase": "FinanceDatabase",
+    "federal_reserve_h6": "Federal Reserve H.6 release (federalreserve.gov)",
+    "cftc": "CFTC Commitments of Traders (via OpenBB)",
     "federal_reserve": "Federal Reserve (via OpenBB)",
     "yahoo": "Yahoo Finance (yfinance)",
     "cboe": "Cboe (via OpenBB)",
@@ -907,7 +922,375 @@ def federal_reserve_curve() -> dict:
     }
 
 
+# --------------------------------------------------------------------------------------------------
+# Factors, positioning and the Federal Reserve
+# --------------------------------------------------------------------------------------------------
+
+FACTOR_REGIONS = ("america", "north_america", "europe", "japan", "asia_pacific_ex_japan", "developed", "developed_ex_us", "emerging")
+FACTOR_FIELDS = ("mkt_rf", "smb", "hml", "rmw", "cma", "rf")
+
+
+def _percent_declared(model: Any, name: str) -> bool:
+    fields = getattr(model if isinstance(model, type) else type(model), "model_fields", {})
+    extra = (fields[name].json_schema_extra if name in fields else None) or {}
+    measure = extra.get("x-unit_measurement") or extra.get("x-unit_measurment")
+    return measure == "percent" and extra.get("x-frontend_multiply") != 100
+
+
+def merge_factor_rows(five: list[dict], momentum: list[dict]) -> list[dict]:
+    """One row per month. The US data calls momentum `mom`; every other region calls it `wml`."""
+    rows = {_date(r["date"]): {"date": _date(r["date"]), **{k: _num(r.get(k)) for k in FACTOR_FIELDS}, "mom": None} for r in five if r.get("date")}
+    for r in momentum:
+        day = _date(r.get("date"))
+        if day in rows:
+            value = r.get("mom") if r.get("mom") is not None else r.get("wml")
+            rows[day]["mom"] = _num(value)
+    return [rows[day] for day in sorted(rows)]
+
+
+def famafrench_factors(region: str = "america", years: int = 30) -> dict:
+    if region not in FACTOR_REGIONS:
+        raise ValueError(f"region must be one of {FACTOR_REGIONS}")
+
+    def call(factor: str) -> list:
+        start = date(date.today().year - int(years), 1, 1).isoformat()
+        return obb().famafrench.factors(region=region, factor=factor, frequency="monthly", start_date=start, provider="famafrench").results
+
+    five = call("5_factors")
+    if not five:
+        raise NoData(f"no factor data for {region}")
+    if not _percent_declared(five[0], "mkt_rf"):
+        raise NoData("the provider no longer declares factor returns as percent")
+    momentum, problem = [], None
+    try:
+        momentum = [r.model_dump() for r in call("momentum")]
+    except Exception as exc:  # the five main factors are still worth showing
+        problem = f"{type(exc).__name__}: {str(exc)[:160]}"
+    return {
+        "region": region,
+        "unit_kind": "percent",
+        "unit": "percent per month, as published in the Data Library",
+        "rows": merge_factor_rows([r.model_dump() for r in five], momentum),
+        "momentum_error": problem,
+    }
+
+
+def _once_more_on_timeout(call: Callable[[], Any]) -> Any:
+    """CFTC's first download can run past OpenBB's 10-second limit, and a second try usually finds it ready."""
+    try:
+        return call()
+    except Exception as exc:
+        if "Timeout" not in f"{type(exc).__name__}: {exc}":
+            raise
+        return call()
+
+
+def _rank_market(query: str, name: str) -> tuple:
+    q, n = query.strip().lower(), name.strip().lower()
+    return (0 if n == q else 1 if n.startswith(q) else 2, len(n), n)
+
+
+def best_cot_matches(query: str, rows: list[dict]) -> list[dict]:
+    """Closest name first. The provider sorts by name, so "s&p" would otherwise land on an interest rate swap."""
+    return sorted(rows, key=lambda r: _rank_market(query, r.get("name") or ""))
+
+
+def _cot_sides(meta: dict) -> dict:
+    return {side: (meta.get(side) or {}).get("zone") for side in ("large_specs", "small_specs", "commercials")}
+
+
+COT_ALIASES = {"oil": "WTI Oil", "crude": "WTI Oil", "crude oil": "WTI Oil", "natural gas": "Nat Gas", "spx": "S&P 500", "sp500": "S&P 500"}
+_COT_CODE = re.compile(r"(?:CFTC_)?(?=[0-9A-Z]*[0-9])[0-9A-Z]{6}")
+
+
+def curated_cot_code(query: str, labels: dict[str, str]) -> str | None:
+    """The code for one of the major markets: its name, an alias, or a part of the name only it has ("wti")."""
+    q = COT_ALIASES.get(query.strip().lower(), query).strip().lower()
+    by_label = {label.lower(): code for label, code in labels.items()}
+    if q in by_label:
+        return by_label[q]
+    partial = [code for label, code in by_label.items() if q in label]  # too short a fragment is a guess, so it goes to the search
+    return partial[0] if len(q) >= 3 and len(partial) == 1 else None
+
+
+def cot_market(market: str) -> dict:
+    """Positioning for one market. Always asks by contract code: given a name, the provider returns one row per
+    similar contract in the same shape as a history ("Gold" gave three rows, not 30 years of gold)."""
+    query = market.strip()
+    if not query:
+        raise ValueError("market is empty")
+    from openbb_cftc.utils.cot_markets import COT_MARKETS
+
+    cftc = obb().cftc
+    matches: list[dict] = []
+    code = query if _COT_CODE.fullmatch(query) else curated_cot_code(query, {m["label"]: m["code"] for m in COT_MARKETS})
+    if not code:
+        found = best_cot_matches(query, [r.model_dump() for r in cftc.cot_search(query=query, provider="cftc").results])
+        if not found:
+            raise NoData(f"no CFTC market matches {query}")
+        matches = [{"name": r.get("name"), "category": r.get("category")} for r in found[:12]]
+        code = found[0]["code"]
+    result = _once_more_on_timeout(lambda: cftc.cot_positioning(code=code, provider="cftc"))
+    rows = [r.model_dump() for r in result.results]
+    if not rows:
+        raise NoData(f"no positioning data for {query}")
+    meta = (result.extra or {}).get("results_metadata") or {}
+    return {
+        "query": query,
+        "market": meta.get("market") or query,
+        "contract": meta.get("contract"),
+        "lookback_weeks": meta.get("lookback_weeks"),
+        "zones": _cot_sides(meta),
+        "matches": matches,
+        "rows": [
+            {
+                "date": _date(r.get("report_date")),
+                "open_interest": _num(r.get("open_interest")),
+                **{f"{side}_net": _num(r.get(f"{side}_net")) for side in ("large_specs", "small_specs", "commercials")},
+                **{f"{side}_score": _num(r.get(f"{side}_score")) for side in ("large_specs", "small_specs", "commercials")},
+            }
+            for r in sorted(rows, key=lambda r: str(r.get("report_date")))
+        ],
+    }
+
+
+def cot_overview() -> dict:
+    rows = _once_more_on_timeout(lambda: obb().cftc.cot_index(provider="cftc")).results
+    if not rows:
+        raise NoData("no CFTC overview")
+    return {
+        "unit": "net position as a percent of open interest",
+        "rows": [
+            {
+                "market": d.get("market"),
+                "date": _date(d.get("report_date")),
+                "open_interest": _num(d.get("open_interest")),
+                **{
+                    f"{side}_{field}": _num(d.get(f"{side}{suffix}"))
+                    for side in ("large_specs", "small_specs", "commercials")
+                    for field, suffix in (("score", ""), ("change", "_change"), ("pct", "_net_pct_oi"))
+                },
+                **{f"{side}_zone": d.get(f"{side}_zone") for side in ("large_specs", "small_specs", "commercials")},
+            }
+            for d in (r.model_dump() for r in rows)
+        ],
+    }
+
+
+def fed_rates(years: int = 5) -> dict:
+    start = (date.today() - timedelta(days=366 * int(years))).isoformat()
+    rate = obb().fixedincome.rate
+    effr, sofr = rate.effr(provider="federal_reserve", start_date=start).results, rate.sofr(provider="federal_reserve", start_date=start).results
+    if not effr:
+        raise NoData("no effective federal funds rate")
+    return {
+        "unit_kind": _unit_kind(effr[0], "rate"),
+        "unit": "fraction (OpenBB normalised percent)",
+        "effr": [{"date": _date(r.date), "rate": _num(r.rate), "upper": _num(r.target_range_upper), "lower": _num(r.target_range_lower)} for r in effr],
+        "sofr": [{"date": _date(r.date), "rate": _num(r.rate)} for r in sofr] if sofr and _unit_kind(sofr[0], "rate") == _unit_kind(effr[0], "rate") else [],
+    }
+
+
+H6_CSV = (
+    "https://www.federalreserve.gov/datadownload/Output.aspx?rel=H6&series=798e2796917702a5f8423426ba7e6b42"
+    "&lastobs=&from=&to=&filetype=csv&label=include&layout=seriescolumn&type=package"
+)
+
+
+def parse_h6_csv(text: str) -> list[dict]:
+    """The Fed's H.6 file, billions of dollars. `M2.M` is seasonally adjusted and `M2_N.M` is not."""
+    table = list(csv.reader(io.StringIO(text)))
+    header = next((row for row in table if row and row[0].strip() == "Time Period"), None)
+    if not header or "M1.M" not in header or "M2.M" not in header:
+        raise NoData("unexpected H.6 file layout")
+    m1, m2 = header.index("M1.M"), header.index("M2.M")
+    rows = []
+    for row in table[table.index(header) + 1:]:
+        if len(row) <= max(m1, m2) or not re.fullmatch(r"\d{4}-\d{2}", row[0].strip()):
+            continue
+        billions = _num(row[m2])
+        if billions is not None:
+            first = _num(row[m1])
+            rows.append({"date": f"{row[0].strip()}-01", "m1": None if first is None else first * 1e9, "m2": billions * 1e9})
+    if not rows:
+        raise NoData("the H.6 file had no M2 values")
+    return rows
+
+
+def fed_money(years: int = 6) -> dict:
+    """Read directly: OpenBB's money_measures has `adjusted` backwards, so True returns the unadjusted series."""
+    request = urllib.request.Request(H6_CSV, headers={"User-Agent": "FinHub"})
+    with urllib.request.urlopen(request, timeout=25) as response:
+        rows = parse_h6_csv(response.read().decode("utf-8-sig"))
+    start = date(date.today().year - int(years), 1, 1).isoformat()
+    return {"unit": "US dollars, seasonally adjusted", "rows": [r for r in rows if r["date"] >= start]}
+
+
+def fed_expectations() -> dict:
+    results = obb().economy.survey.inflation_expectations(provider="federal_reserve").results
+    if not results:
+        raise NoData("no inflation expectations")
+    if not _percent_declared(results[0], "infcpi1yr"):
+        raise NoData("the provider no longer declares inflation expectations as percent")
+    return {
+        "unit_kind": "percent",
+        "unit": "percent, Survey of Professional Forecasters median",
+        "rows": [{"date": _date(r.date), "cpi_1y": _num(r.infcpi1yr), "cpi_10y": _num(r.infcpi10yr)} for r in results if r.infcpi1yr is not None or r.infcpi10yr is not None],
+    }
+
+
+# --------------------------------------------------------------------------------------------------
+# Reading filings
+# --------------------------------------------------------------------------------------------------
+
+
+def _section_title(item: str, text: str) -> str:
+    """ "Item 1A.    Risk Factors" from the section's own first line, with the part added where one is named."""
+    part, _, short = item.rpartition(", ")
+    first = next((line.strip() for line in text.splitlines() if line.strip()), short)
+    title = " ".join(first.split())
+    if not title.lower().startswith("item"):
+        title = short
+    elif len(title) > 90:
+        title = f"{title[:87].rstrip()}…"
+    return f"{part} · {title}" if part else title
+
+
+def _tidy(text: str) -> str:
+    return text.replace("\xa0", " ").strip()
+
+
+def filing_sections(report, whole_text: Callable[[], str]) -> list[dict]:
+    """The filing's own items where it has them. Otherwise the whole text, as one section. Empty items are left out."""
+    sections = []
+    for item in getattr(report, "items", None) or []:
+        try:
+            text = _tidy(str(report[item] or ""))
+        except Exception:  # one unreadable item shouldn't lose the rest
+            continue
+        if text:
+            sections.append({"id": item, "title": _section_title(item, text), "text": text})
+    if not sections:
+        text = _tidy(whole_text() or "")
+        if not text:
+            raise NoData("this filing has no readable text")
+        sections = [{"id": "full", "title": "Full text", "text": text}]
+    return sections
+
+
+def edgar_filing(identity: str, symbol: str | None = None, form: str = "10-K", accession: str | None = None) -> dict:
+    data = os.environ.get("FINHUB_DATA_DIR")
+    if data:  # keep edgartools' downloads with FinHub's other files
+        os.environ.setdefault("EDGAR_LOCAL_DATA_DIR", os.path.join(data, "edgar"))
+    import edgar
+
+    edgar.set_identity(identity)
+    if accession:
+        filing = edgar.find(accession)
+        if filing is None:
+            raise NoData(f"no filing with accession number {accession}")
+    else:
+        filing = edgar.Company(symbol).get_filings(form=form).latest()
+        if filing is None:
+            raise NoData(f"{symbol} has no {form} filings")
+    report = None
+    try:
+        report = filing.obj()
+    except Exception:  # some forms have no structured reader, and the plain text is still worth having
+        pass
+    return {
+        "company": filing.company,
+        "form": filing.form,
+        "filed": str(filing.filing_date)[:10],
+        "accession": filing.accession_no,
+        "url": getattr(filing, "homepage_url", None) or getattr(filing, "filing_url", None),
+        "sections": filing_sections(report, filing.text),
+    }
+
+
+# --------------------------------------------------------------------------------------------------
+# Finding symbols
+# --------------------------------------------------------------------------------------------------
+
+CAP_ORDER = {"Mega Cap": 0, "Large Cap": 1, "Mid Cap": 2, "Small Cap": 3, "Micro Cap": 4, "Nano Cap": 5}
+US_EXCHANGES = ("NYQ", "NMS", "NGM", "NCM", "ASE", "PCX", "BTS")
+_find_frames: dict[str, Any] = {}
+_find_everything: dict[str, Any] = {}
+
+
+def _find_frame(kind: str):
+    """Each company's main listing, and its US one. The raw list has an Apple row for every exchange in the world, but
+    main listings alone would hide TSM, ASML and BP, which count their home markets as the main one."""
+    if kind not in _find_frames:
+        import financedatabase as fd
+
+        database = {"equities": fd.Equities, "etfs": fd.ETFs}[kind]()
+        everything = database.select(only_primary_listing=False, exclude_delisted=True)
+        main = database.select(only_primary_listing=True, exclude_delisted=True)
+        _find_everything[kind] = everything
+        _find_frames[kind] = everything[everything.index.isin(main.index) | everything["exchange"].isin(US_EXCHANGES)]
+    return _find_frames[kind]
+
+
+def rank_found(rows: list[dict], query: str) -> list[dict]:
+    """The exact ticker, then the word in the name ("gold" before "Golden"), then descriptions, biggest first within each."""
+    q = query.strip().lower()
+    word = re.compile(rf"\b{re.escape(q)}\b") if q else None
+
+    def order(row: dict) -> tuple:
+        name = (row.get("name") or "").lower()
+        place = 0 if q and row["symbol"].lower() == q else 1 if q and word.search(name) else 2 if q and q in name else 3
+        return (place, CAP_ORDER.get(row.get("market_cap"), 9), "." in row["symbol"], name)
+
+    return sorted(rows, key=order)
+
+
+def find_symbols(kind: str = "equities", query: str = "", country: str | None = None, sector: str | None = None, market_cap: str | None = None, limit: int = 200) -> dict:
+    frame = _find_frame(kind)
+    if country and "country" in frame:
+        frame = frame[frame["country"] == country]
+    if sector:
+        frame = frame[frame["sector" if "sector" in frame else "category_group"] == sector]
+    if market_cap and "market_cap" in frame:
+        frame = frame[frame["market_cap"] == market_cap]
+    q = query.strip()
+    if q:
+        # A ticker typed in full is found on any exchange, however minor.
+        everything = _find_everything.get(kind)
+        if everything is not None and not (country or sector or market_cap):
+            exact = everything[everything.index.str.lower() == q.lower()]
+            if len(exact) and not exact.index.isin(frame.index).all():
+                frame = everything[everything.index.isin(frame.index) | everything.index.isin(exact.index)]
+        matches = frame.index.str.lower() == q.lower()
+        for column in ("name", "summary"):
+            if column in frame:
+                matches = matches | frame[column].fillna("").str.contains(q, case=False, regex=False)
+        frame = frame[matches]
+    fields = ("name", "sector", "industry", "category_group", "category", "country", "exchange", "currency", "market_cap")
+    total = int(len(frame))
+    if "market_cap" in frame:  # the biggest first, so a broad search is still ranked when it's cut to the first few thousand
+        frame = frame.iloc[frame["market_cap"].map(CAP_ORDER).fillna(9).argsort(kind="stable")]
+    rows = [{"symbol": str(symbol), **{f: (None if row.get(f) != row.get(f) else row.get(f)) for f in fields if f in row}} for symbol, row in frame.head(5000).to_dict("index").items()]
+    return {"kind": kind, "total": total, "rows": rank_found(rows, q)[: int(limit)]}
+
+
+def find_options() -> dict:
+    frame = _find_frame("equities")
+    etfs = _find_frame("etfs")
+    values = lambda column, f=frame: sorted(str(v) for v in f[column].dropna().unique())  # noqa: E731
+    return {"countries": values("country"), "sectors": values("sector"), "market_caps": list(CAP_ORDER), "etf_groups": values("category_group", etfs)}
+
+
 FETCHERS: dict[str, dict[str, Callable[..., dict]]] = {
+    "find_symbols": {"financedatabase": find_symbols},
+    "find_options": {"financedatabase": find_options},
+    "filing_text": {"edgar": edgar_filing},
+    "factors": {"famafrench": on_obb_thread(famafrench_factors)},
+    "cot_overview": {"cftc": on_obb_thread(cot_overview)},
+    "cot_market": {"cftc": on_obb_thread(cot_market)},
+    "fed_rates": {"federal_reserve": on_obb_thread(fed_rates)},
+    "fed_money": {"federal_reserve_h6": fed_money},
+    "fed_expectations": {"federal_reserve": on_obb_thread(fed_expectations)},
     "insider": {p: on_obb_thread(openbb_insider(p)) for p in ("sec", "nasdaq")},
     "institutional": {"nasdaq": on_obb_thread(openbb_institutional("nasdaq"))},
     "short_interest": {p: on_obb_thread(openbb_short_interest(p)) for p in ("nasdaq", "finra")},

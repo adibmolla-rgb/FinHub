@@ -1,11 +1,11 @@
-// Research panels: OWN, CHAIN, CAL, FILINGS, ETF and CURVE.
+// Research panels: OWN, CHAIN, CAL, FILINGS, ETF, CURVE, FACTORS, COT and FED.
 // Headline figures are clickable receipts. Table rows are the provider's own values, and each panel says
 // which provider served them; figures FinHub derives from them are worked out by the backend.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   compact, researchApi, timeAgo, watchApi,
-  type EtfHoldings, type Filings, type InsiderRow, type MarketCalendar, type OptionContract, type OptionsChain,
+  type CotMarket, type CotOverview, type EtfHoldings, type FedConditions, type Factors, type Filings, type InsiderRow, type MarketCalendar, type OptionContract, type OptionsChain,
   type Ownership, type Receipt, type SourceMeta, type YieldCurve,
 } from './api'
 import { Panel } from './components'
@@ -23,6 +23,9 @@ export type ResearchView =
   | { view: 'filings'; symbol: string }
   | { view: 'etf'; symbol: string }
   | { view: 'curve' }
+  | { view: 'factors'; region: string; years: number }
+  | { view: 'cot'; market?: string }
+  | { view: 'fed' }
 
 /** Load once per `load` identity (memoise it with useCallback); a slower, older answer is ignored. */
 function useLoad<T>(load: () => Promise<T>) {
@@ -377,7 +380,7 @@ const FORM_GROUPS: [string, (form: string) => boolean][] = [
   ['Insiders', (f) => /^(3|4|5|144)(\/A)?$/.test(f)],
 ]
 
-export function FilingsWorkspace({ symbol }: { symbol: string }) {
+export function FilingsWorkspace({ symbol, onOpen }: { symbol: string; onOpen: Common['onOpen'] }) {
   const [group, setGroup] = useState('All')
   const { data, error, loading } = useLoad<Filings>(useCallback(() => researchApi.filings(symbol), [symbol]))
   const test = FORM_GROUPS.find(([name]) => name === group)?.[1] ?? (() => true)
@@ -393,7 +396,7 @@ export function FilingsWorkspace({ symbol }: { symbol: string }) {
               <CopyCsvButton rows={() => [['date', 'form', 'description', 'accession', 'url'], ...rows.map((r) => [r.date, r.form, r.description, r.accession, r.url])]} />
             </div>
             <table className="table">
-              <thead><tr><th>Filed</th><th>Form</th><th>Description</th><th>Accession number</th><th>Document</th></tr></thead>
+              <thead><tr><th>Filed</th><th>Form</th><th>Description</th><th>Accession number</th><th>Document</th><th /></tr></thead>
               <tbody>
                 {rows.map((r, i) => (
                   <tr key={r.accession ?? i}>
@@ -402,6 +405,7 @@ export function FilingsWorkspace({ symbol }: { symbol: string }) {
                     <td className="muted small">{r.description ?? '—'}{r.items && ` · items ${r.items}`}</td>
                     <td className="muted small">{r.accession ?? '—'}</td>
                     <td>{r.url ? <a href={r.url} target="_blank" rel="noreferrer">Open</a> : '—'}</td>
+                    <td className="num">{r.accession && <button className="chip" onClick={() => onOpen(`READ ${symbol} ${r.form} ${r.accession}`)}>Read</button>}</td>
                   </tr>
                 ))}
               </tbody>
@@ -510,13 +514,252 @@ export function CurveWorkspace({ onReceipt }: { onReceipt: Common['onReceipt'] }
   )
 }
 
+// Dates on a chart's x-axis, as evenly spaced years.
+const dayMs = (day: string) => Date.parse(`${day}T00:00:00Z`)
+const yearLabel = (ms: number) => String(new Date(ms).getUTCFullYear())
+function yearTicks(points: string[], count = 6): number[] {
+  if (points.length < 2) return points.map(dayMs)
+  const first = new Date(dayMs(points[0])).getUTCFullYear()
+  const last = new Date(dayMs(points[points.length - 1])).getUTCFullYear()
+  const step = Math.max(1, Math.ceil((last - first) / count))
+  const out: number[] = []
+  for (let y = first + 1; y <= last; y += step) out.push(Date.UTC(y, 0, 1))
+  return out.length ? out : [dayMs(points[0])] // all within one year: an empty list would mean no labels at all
+}
+
+const FACTOR_COLORS: Record<string, string> = { mkt_rf: '#6cb6ff', smb: '#f0a35e', hml: '#7ee787', rmw: '#d2a8ff', cma: '#ff7b72', mom: '#e3b341' }
+
+export function FactorsWorkspace({ region: initialRegion, years: initialYears, onReceipt }: { region: string; years: number; onReceipt: Common['onReceipt'] }) {
+  const [region, setRegion] = useState(initialRegion)
+  const [years, setYears] = useState(initialYears)
+  const { data, error, loading } = useLoad<Factors>(useCallback(() => researchApi.factors(region, years), [region, years]))
+  const signed = (r: Receipt | null | undefined) => (r && r.value < 0 ? 'bad' : '')
+  return (
+    <main className="grid grid--research">
+      <Panel code="FACTORS" title={`Fama-French factors${data ? ` · ${data.region_label}` : ''}`} className="research-wide">
+        <div className="stack">
+          <div className="ticket">
+            <select className="research-select" value={region} onChange={(e) => setRegion(e.target.value)} aria-label="Region">
+              {Object.entries(data?.regions ?? { [region]: region }).map(([code, label]) => <option key={code} value={code}>{label}</option>)}
+            </select>
+            {[5, 10, 30].map((y) => <button key={y} className={`chip ${years === y ? 'chip--on' : ''}`} onClick={() => setYears(y)}>{y}Y</button>)}
+          </div>
+          <Status what="factor returns" error={error} loading={loading} />
+          {data && (
+            <>
+              <div className="research-chart">
+                <XYChart
+                  height={260}
+                  zeroLine={false}
+                  series={data.factors.map((f) => ({ label: f.label, color: FACTOR_COLORS[f.key] ?? '#7d8794', points: f.curve.map(([day, v]): [number, number] => [dayMs(day), v]) }))}
+                  xTicks={yearTicks(data.factors[0].curve.map(([day]) => day))}
+                  xLabel={yearLabel}
+                  yLabel={(y) => y.toFixed(1)}
+                />
+              </div>
+              {data.warnings.map((w) => <p key={w} className="warn small">{w}</p>)}
+              <p className="muted small">Growth of 1 in each factor’s paper portfolio. {data.start.slice(0, 7)} to {data.end.slice(0, 7)}.</p>
+              <div className="ticket">
+                <CopyCsvButton rows={() => [['date', 'mkt_rf', 'smb', 'hml', 'rmw', 'cma', 'mom', 'rf'], ...data.rows.map((r) => [r.date, r.mkt_rf, r.smb, r.hml, r.rmw, r.cma, r.mom, r.rf])]} />
+              </div>
+              <table className="table">
+                <thead><tr><th>Factor</th><th className="num">Latest month</th><th className="num">Last 12 months</th><th className="num">Average a year</th><th className="num">Volatility a year</th><th className="num">t-statistic</th></tr></thead>
+                <tbody>
+                  {data.factors.map((f) => (
+                    <tr key={f.key}>
+                      <td>{f.label}<div className="muted small">{f.description}</div></td>
+                      <td className="num"><Val r={f.latest} onReceipt={onReceipt} className={signed(f.latest)} /></td>
+                      <td className="num"><Val r={f.last_12m} onReceipt={onReceipt} className={signed(f.last_12m)} /></td>
+                      <td className="num"><Val r={f.annual_return} onReceipt={onReceipt} className={signed(f.annual_return)} /></td>
+                      <td className="num"><Val r={f.annual_volatility} onReceipt={onReceipt} /></td>
+                      <td className="num"><Val r={f.t_stat ?? undefined} onReceipt={onReceipt} className={signed(f.t_stat)} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="muted small">These are paper long-short portfolios before trading costs, so you couldn’t have earned them exactly. A t-statistic near 2 is weak evidence: many factors have been tried, and the ones published are the ones that looked good. Published monthly, so the latest month lags.</p>
+              <Source meta={data} note={`unit: ${data.unit}`} />
+            </>
+          )}
+        </div>
+      </Panel>
+    </main>
+  )
+}
+
+function CotOverviewView({ data, onOpen }: { data: CotOverview; onOpen: Common['onOpen'] }) {
+  const zone = (z: string | null) => (z === 'neutral' || !z ? 'muted' : 'warn')
+  return (
+    <div className="stack">
+      <p className="muted small">Positions reported on {data.report_date}. A score shows where a group’s net position sits in its own recent range: 0 is its most short, 100 its most long. Pick a market for its history.</p>
+      <div className="ticket">
+        <CopyCsvButton rows={() => [['market', 'date', 'open_interest', ...data.sides.flatMap((s) => [`${s.key}_share_of_oi`, `${s.key}_score`, `${s.key}_zone`])], ...data.rows.map((r) => [r.market, r.date, r.open_interest, ...data.sides.flatMap((s) => [r.sides[s.key].share_of_oi, r.sides[s.key].score, r.sides[s.key].zone])])]} />
+      </div>
+      <table className="table">
+        <thead>
+          <tr><th>Market</th><th className="num">Open interest</th>{data.sides.map((s) => <th key={s.key} className="num">{s.label}</th>)}</tr>
+        </thead>
+        <tbody>
+          {data.rows.map((r) => (
+            <tr key={r.market}>
+              <td><button className="link" onClick={() => onOpen(`COT ${r.market}`)}>{r.market}</button></td>
+              <td className="num">{r.open_interest == null ? '—' : compact(r.open_interest)}</td>
+              {data.sides.map((s) => {
+                const side = r.sides[s.key]
+                return (
+                  <td key={s.key} className="num">
+                    {pct(side.share_of_oi)} <span className="muted small">· {side.score ?? '—'}</span>
+                    {side.zone && side.zone !== 'neutral' && <div className={`${zone(side.zone)} small`}>{side.zone}</div>}
+                  </td>
+                )
+              })}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <Source meta={data} note="net position as a share of open interest · score" />
+    </div>
+  )
+}
+
+function CotMarketView({ data, onReceipt, onOpen }: { data: CotMarket; onReceipt: Common['onReceipt']; onOpen: Common['onOpen'] }) {
+  const colors: Record<string, string> = { large_specs: '#6cb6ff', small_specs: '#f0a35e', commercials: '#7ee787' }
+  const others = data.matches.filter((m) => m.name !== data.market)
+  return (
+    <div className="stack">
+      {others.length > 0 && (
+        <div className="stack">
+          <p className="warn small">“{data.query}” matched {data.matches.length} contracts. This is the closest name. Others:</p>
+          <div className="ticket">{others.slice(0, 8).map((m) => <button key={m.name} className="chip" onClick={() => onOpen(`COT ${m.name}`)}>{m.name}</button>)}</div>
+        </div>
+      )}
+      <div className="figs">
+        <Fig label="Open interest (contracts)" r={data.open_interest} onReceipt={onReceipt} />
+      </div>
+      <table className="table">
+        <thead><tr><th>Group</th><th className="num">Net position</th><th className="num">Share of open interest</th><th className="num">Change in a week</th><th className="num">Score (0 to 100)</th><th>Zone</th></tr></thead>
+        <tbody>
+          {data.sides.map((s) => (
+            <tr key={s.key}>
+              <td>{s.label}</td>
+              <td className="num"><Val r={s.net} onReceipt={onReceipt} /></td>
+              <td className="num"><Val r={s.share_of_oi} onReceipt={onReceipt} /></td>
+              <td className="num"><Val r={s.change_1w} onReceipt={onReceipt} /></td>
+              <td className="num"><Val r={s.score} onReceipt={onReceipt} /></td>
+              <td className={s.zone && s.zone !== 'neutral' ? 'warn' : 'muted'}>{s.zone ?? '—'}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="research-chart">
+        <XYChart
+          height={240}
+          series={data.sides.map((s) => ({
+            label: s.label,
+            color: colors[s.key],
+            points: data.history.flatMap((h): [number, number][] => (h[s.key] == null ? [] : [[dayMs(h.date), h[s.key]!]])),
+          }))}
+          xTicks={yearTicks(data.history.map((h) => h.date))}
+          xLabel={yearLabel}
+          yLabel={(y) => `${(y * 100).toFixed(0)}%`}
+        />
+      </div>
+      <div className="ticket">
+        <CopyCsvButton rows={() => [['date', 'large_specs', 'small_specs', 'commercials'], ...data.history.map((h) => [h.date, h.large_specs, h.small_specs, h.commercials])]} />
+      </div>
+      <p className="muted small">Net position as a share of open interest, last 3 years. Speculators are mostly funds. Commercials are mostly producers and users hedging, so they usually sit on the other side. {data.lookback_weeks ? `Scores compare with the last ${data.lookback_weeks} weeks. ` : ''}Reported weekly and published days later, so this isn’t today’s position.</p>
+      <Source meta={data} note={`report of ${data.report_date}`} />
+    </div>
+  )
+}
+
+export function CotWorkspace({ market, onReceipt, onOpen }: { market?: string } & Common) {
+  const { data, error, loading } = useLoad<CotOverview | CotMarket>(useCallback(() => researchApi.cot(market), [market]))
+  const title = data?.view === 'market' ? `COT · ${data.market}` : 'Commitments of Traders'
+  return (
+    <main className="grid grid--research">
+      <Panel code="COT" title={title} className="research-wide">
+        <div className="stack">
+          {market && <div className="ticket"><button className="chip" onClick={() => onOpen('COT')}>All major markets</button></div>}
+          <Status what="positioning data" error={error} loading={loading} />
+          {data?.view === 'overview' && <CotOverviewView data={data} onOpen={onOpen} />}
+          {data?.view === 'market' && <CotMarketView data={data} onReceipt={onReceipt} onOpen={onOpen} />}
+        </div>
+      </Panel>
+    </main>
+  )
+}
+
+export function FedWorkspace({ onReceipt }: { onReceipt: Common['onReceipt'] }) {
+  const { data, error, loading } = useLoad<FedConditions>(useCallback(() => researchApi.fed(), []))
+  const rates = data?.rates
+  const money = data?.money
+  const expectations = data?.expectations
+  const twoDp = (y: number) => `${(y * 100).toFixed(1)}%`
+  return (
+    <main className="grid grid--research">
+      <Panel code="FED" title="Federal Reserve" className="research-wide">
+        <div className="stack">
+          <Status what="Federal Reserve data" error={error} loading={loading} />
+          {data && Object.entries(data.errors).map(([section, message]) => <p key={section} className="warn small">No {section} data: {message}</p>)}
+          {data && (
+            <div className="figs">
+              <Fig label="Effective funds rate" r={rates?.effr} onReceipt={onReceipt} />
+              <Fig label="Target, lower" r={rates?.target_lower} onReceipt={onReceipt} />
+              <Fig label="Target, upper" r={rates?.target_upper} onReceipt={onReceipt} />
+              <Fig label="SOFR" r={rates?.sofr} onReceipt={onReceipt} />
+              <Fig label="SOFR minus funds rate" r={rates?.sofr_minus_effr} onReceipt={onReceipt} />
+              <Fig label="Real funds rate (approx.)" r={data.real_rate} onReceipt={onReceipt} />
+              <Fig label="M2 money supply" r={money?.m2} onReceipt={onReceipt} />
+              <Fig label="M2 growth, a year" r={money?.m2_growth} onReceipt={onReceipt} />
+              <Fig label="Expected inflation, 1 year" r={expectations?.cpi_1y} onReceipt={onReceipt} />
+              <Fig label="Expected inflation, 10 years" r={expectations?.cpi_10y} onReceipt={onReceipt} />
+            </div>
+          )}
+          {rates && rates.series.length > 0 && (
+            <>
+              <h3 className="small">Short-term rates, last 5 years</h3>
+              <div className="research-chart">
+                <XYChart
+                  height={220}
+                  zeroLine={false}
+                  series={[
+                    { label: 'Effective funds rate', color: '#6cb6ff', points: rates.series.map(([d, v]): [number, number] => [dayMs(d), v]) },
+                    { label: 'SOFR', color: '#f0a35e', points: rates.series.flatMap(([d, , v]): [number, number][] => (v == null ? [] : [[dayMs(d), v]])) },
+                  ]}
+                  xTicks={yearTicks(rates.series.map(([d]) => d))}
+                  xLabel={yearLabel}
+                  yLabel={twoDp}
+                />
+              </div>
+            </>
+          )}
+          {money && money.series.length > 0 && (
+            <>
+              <h3 className="small">M2 growth over a year</h3>
+              <div className="research-chart">
+                <XYChart height={180} series={[{ label: 'M2 growth', color: '#7ee787', points: money.series.map(([d, v]): [number, number] => [dayMs(d), v]) }]} xTicks={yearTicks(money.series.map(([d]) => d))} xLabel={yearLabel} yLabel={twoDp} />
+              </div>
+            </>
+          )}
+          {data && <p className="muted small">The real rate here is the funds rate minus forecasters’ expected inflation for the next year, a rough guide only. Expectations come from a quarterly survey, so they change less often than the rates.</p>}
+          {rates && <Source meta={rates} note={rates.series.length ? `rates to ${rates.series[rates.series.length - 1][0]}` : undefined} />}
+        </div>
+      </Panel>
+    </main>
+  )
+}
+
 export function ResearchWorkspace({ view, onReceipt, onOpen }: { view: ResearchView } & Common) {
   switch (view.view) {
     case 'own': return <OwnershipWorkspace symbol={view.symbol} onReceipt={onReceipt} />
     case 'chain': return <ChainWorkspace symbol={view.symbol} expiration={view.expiration} onReceipt={onReceipt} />
     case 'cal': return <CalendarWorkspace days={view.days} onOpen={onOpen} />
-    case 'filings': return <FilingsWorkspace symbol={view.symbol} />
+    case 'filings': return <FilingsWorkspace symbol={view.symbol} onOpen={onOpen} />
     case 'etf': return <EtfWorkspace symbol={view.symbol} onReceipt={onReceipt} onOpen={onOpen} />
     case 'curve': return <CurveWorkspace onReceipt={onReceipt} />
+    case 'factors': return <FactorsWorkspace region={view.region} years={view.years} onReceipt={onReceipt} />
+    case 'cot': return <CotWorkspace market={view.market} onReceipt={onReceipt} onOpen={onOpen} />
+    case 'fed': return <FedWorkspace onReceipt={onReceipt} />
   }
 }
