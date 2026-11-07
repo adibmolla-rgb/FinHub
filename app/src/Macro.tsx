@@ -5,7 +5,7 @@ import { Panel } from './components'
 
 const ORDER = ['cpi', 'unemployment', 'rate_short', 'rate_long', 'gdp_real']
 
-function Spark({ s }: { s: MacroSeries }) {
+export function Spark({ s, format }: { s: Pick<MacroSeries, 'unit_kind' | 'points'>; format?: (v: number) => string }) {
   const el = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (!el.current) return
@@ -21,13 +21,13 @@ function Spark({ s }: { s: MacroSeries }) {
     const pct = s.unit_kind === 'fraction'
     const line = chart.addSeries(LineSeries, {
       color: '#6cb6ff', lineWidth: 2, priceLineVisible: false,
-      priceFormat: pct ? { type: 'custom', formatter: (v: number) => `${(v * 100).toFixed(1)}%` } : { type: 'price', precision: 2, minMove: 0.01 },
+      priceFormat: format ? { type: 'custom', formatter: format } : pct ? { type: 'custom', formatter: (v: number) => `${(v * 100).toFixed(1)}%` } : { type: 'price', precision: 2, minMove: 0.01 },
     })
     const seen = new Set<string>()
     line.setData(s.points.filter((p) => (seen.has(p.date) ? false : (seen.add(p.date), true))).map((p) => ({ time: p.date as Time, value: p.value })))
     chart.timeScale().fitContent()
     return () => chart.remove()
-  }, [s])
+  }, [s, format])
   return <div ref={el} className="spark" />
 }
 

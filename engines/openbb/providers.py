@@ -8,9 +8,13 @@ Nothing here converts units: the backend owns that.
 
 from __future__ import annotations
 
+import csv
+import io
+import json
 import math
 import re
 import time
+import urllib.request
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date, datetime, timedelta, timezone
@@ -27,9 +31,21 @@ CHAINS: dict[str, list[str]] = {
     "news": ["yahoo", "nasdaq", "tmx"],
     "statement": ["yahoo", "sec", "nasdaq", "tmx"],
     "macro": ["oecd"],
+    "insider": ["sec", "nasdaq"],
+    "institutional": ["nasdaq"],
+    "short_interest": ["nasdaq", "finra"],
+    "options_chain": ["cboe_direct", "cboe", "nasdaq"],
+    "earnings_calendar": ["nasdaq"],
+    "economic_calendar": ["nasdaq"],
+    "filings": ["sec"],
+    "etf_holdings": ["nasdaq"],
+    "yield_curve": ["treasury", "federal_reserve"],
 }
 
 PROVIDER_NAMES = {
+    "cboe_direct": "Cboe delayed quotes (cdn.cboe.com)",
+    "treasury": "US Treasury (home.treasury.gov)",
+    "federal_reserve": "Federal Reserve (via OpenBB)",
     "yahoo": "Yahoo Finance (yfinance)",
     "cboe": "Cboe (via OpenBB)",
     "nasdaq": "Nasdaq (via OpenBB)",
@@ -467,8 +483,9 @@ MACRO_SERIES = {
 def unit_of(row) -> tuple[str, str]:
     """(kind, description) for a result row's `value` field.
 
-    kind is "fraction" when OpenBB marks the field as a normalised percent (x-frontend_multiply = 100),
-    otherwise "as_reported" with whatever unit text the provider gives (or "not stated").
+    kind is "fraction" when OpenBB marks the field as a normalised percent (x-frontend_multiply = 100) or the
+    row itself says so (OECD CPI: 0.036 with a percent unit and unit_multiplier 100 is 3.6%), otherwise
+    "as_reported" with whatever unit text the provider gives (or "not stated").
     """
     fields = getattr(type(row), "model_fields", {})
     extra = (fields.get("value").json_schema_extra if fields.get("value") else None) or {}
@@ -476,6 +493,9 @@ def unit_of(row) -> tuple[str, str]:
     if extra.get("x-frontend_multiply") == 100 and measure == "percent":
         return "fraction", "fraction (OpenBB normalised percent)"
     data = row.model_dump() if hasattr(row, "model_dump") else dict(row)
+    unit = str(data.get("unit") or "")
+    if "percent" in unit.lower() and str(data.get("unit_multiplier")) in ("100", "100.0"):
+        return "fraction", f"fraction ({unit}, multiplier 100)"
     text = " ".join(str(data[k]) for k in ("unit", "unit_multiplier") if data.get(k) not in (None, "", 0))
     return "as_reported", text or "not stated by the provider"
 
@@ -503,7 +523,400 @@ def macro_series(series: str, country: str = "united_states", years: int = 10) -
     return {"series": series, "label": label, "country": country, "unit_kind": kind, "unit": unit_text, "points": points}
 
 
+# --------------------------------------------------------------------------------------------------
+# Research panels: ownership, options chains, calendars, filings, ETF holdings, yield curve.
+# Rows are kept raw. Providers disagree on units (FINRA's change_pct of -12.29 means percent, Nasdaq's
+# 0.0897 is a fraction), so only raw counts and prices cross this boundary and the backend derives the rest.
+# --------------------------------------------------------------------------------------------------
+
+
+def _date(value: Any) -> str | None:
+    return None if value is None else str(value)[:10]
+
+
+def _text(value: Any) -> str | None:
+    """Provider text, with the placeholders they use for "nothing" turned into None."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return None if text in ("", "-", "--", "N/A", "not-supplied") else text
+
+
+def _unit_kind(model: Any, name: str, *fraction_measures: str) -> str:
+    """"fraction" only when the provider's field metadata declares it; never guessed from the value."""
+    fields = getattr(model if isinstance(model, type) else type(model), "model_fields", {})
+    extra = (fields[name].json_schema_extra if name in fields else None) or {}
+    measure = extra.get("x-unit_measurement") or extra.get("x-unit_measurment")
+    if measure == "percent" and extra.get("x-frontend_multiply") == 100:
+        return "fraction"
+    return "fraction" if measure in fraction_measures else "as_reported"
+
+
+def insider_rows(rows: list[dict]) -> list[dict]:
+    out = [
+        {
+            "date": _date(r.get("transaction_date")),
+            "filed": _date(r.get("filing_date")),
+            "owner": _text(r.get("owner_name")),
+            "title": _text(r.get("owner_title")),
+            "type": _text(r.get("transaction_type")),
+            "direction": _text(r.get("acquisition_or_disposition")),  # only SEC filings state this
+            "security": _text(r.get("security_type")),
+            "shares": _num(r.get("securities_transacted")),
+            "price": _num(r.get("transaction_price")),
+            "shares_after": _num(r.get("securities_owned") if r.get("securities_owned") is not None else r.get("shares_held")),
+            "plan_10b5_1": "10b5-1" in str(r.get("footnote") or ""),
+            "url": _text(r.get("filing_url") or r.get("url")),
+        }
+        for r in rows
+    ]
+    out = [r for r in out if r["date"] and r["shares"] is not None]
+    if not out:
+        raise NoData("no insider transactions")
+    return sorted(out, key=lambda r: r["date"], reverse=True)
+
+
+def openbb_insider(provider: str) -> Callable[..., dict]:
+    def fetch(symbol: str) -> dict:
+        rows = insider_rows(_rows(obb().equity.ownership.insider_trading(symbol, provider=provider, limit=40)))
+        return {"symbol": symbol.upper(), "rows": rows}
+
+    return fetch
+
+
+def openbb_institutional(provider: str) -> Callable[..., dict]:
+    def fetch(symbol: str) -> dict:
+        # Nasdaq's market_value is dropped: it reads as thousands of dollars (Vanguard's 1.4bn AAPL shares
+        # came back as 490m) and no unit is declared. Share counts are unambiguous.
+        rows = [
+            {"owner": _text(r.get("owner_name")), "date": _date(r.get("date")), "shares": _num(r.get("shares_held")), "change": _num(r.get("shares_change"))}
+            for r in _rows(obb().equity.ownership.institutional(symbol, provider=provider))
+        ]
+        rows = [r for r in rows if r["owner"] and r["shares"] is not None]
+        if not rows:
+            raise NoData(f"no institutional holders for {symbol}")
+        return {"symbol": symbol.upper(), "rows": sorted(rows, key=lambda r: r["shares"], reverse=True)[:25]}
+
+    return fetch
+
+
+def short_rows(rows: list[dict], keep: int = 48) -> list[dict]:
+    out = [
+        {
+            "date": _date(r.get("settlement_date")),
+            "short": _num(r.get("current_short_position")),
+            "previous": _num(r.get("previous_short_position")),
+            "avg_volume": _num(r.get("avg_daily_volume")),
+        }
+        for r in rows
+    ]
+    out = sorted((r for r in out if r["date"] and r["short"] is not None), key=lambda r: r["date"])
+    if not out:
+        raise NoData("no short interest")
+    return out[-keep:]
+
+
+def openbb_short_interest(provider: str) -> Callable[..., dict]:
+    def fetch(symbol: str) -> dict:
+        return {"symbol": symbol.upper(), "rows": short_rows(_rows(obb().equity.shorts.short_interest(symbol, provider=provider)))}
+
+    return fetch
+
+
+def chain_view(rows: list[dict], symbol: str, expiration: str | None, today: date, iv_unit: str) -> dict:
+    """One expiration of a chain. A default of a week or more out avoids contracts that expire today."""
+    if not rows:
+        raise NoData(f"no options for {symbol}")
+    expirations = sorted({_date(r.get("expiration")) for r in rows if r.get("expiration")})
+    if not expirations:
+        raise NoData(f"no expirations for {symbol}")
+    if expiration is None:
+        week_out = (today + timedelta(days=7)).isoformat()
+        expiration = next((e for e in expirations if e >= week_out), expirations[-1])
+    elif expiration not in expirations:
+        raise NoData(f"{symbol} has no {expiration} expiration")
+    contracts = []
+    for r in rows:
+        strike = _num(r.get("strike"))
+        kind = str(r.get("option_type") or "").lower()
+        if _date(r.get("expiration")) != expiration or strike is None or kind not in ("call", "put"):
+            continue
+        contracts.append({
+            "strike": strike,
+            "type": kind,
+            "bid": _num(r.get("bid")),
+            "ask": _num(r.get("ask")),
+            "last": _num(r.get("last_trade_price")),
+            "volume": _num(r.get("volume")),
+            "open_interest": _num(r.get("open_interest")),
+            "iv": _num(r.get("implied_volatility")),
+            "delta": _num(r.get("delta")),
+        })
+    if not contracts:
+        raise NoData(f"no usable {symbol} contracts for {expiration}")
+    underlying = next((_num(r.get("underlying_price")) for r in rows if _num(r.get("underlying_price")) is not None), None)
+    return {
+        "symbol": symbol.upper(),
+        "underlying": None if underlying is None else {"value": underlying, "field": "underlying_price"},
+        "expirations": expirations,
+        "expiration": expiration,
+        "iv_unit": iv_unit,
+        "contracts": contracts,
+    }
+
+
+def openbb_options_chain(provider: str) -> Callable[..., dict]:
+    def fetch(symbol: str, expiration: str | None = None) -> dict:
+        result = obb().derivatives.options.chains(symbol, provider=provider).results
+        # Cboe declares implied volatility as a decimal (0.2656 = 26.56%).
+        return chain_view(result.model_dump(), symbol, expiration, date.today(), _unit_kind(result, "implied_volatility", "decimal"))
+
+    return fetch
+
+
+CBOE_FEED = "https://cdn.cboe.com/api/global/delayed_quotes/options/{symbol}.json"
+_OCC_SYMBOL = re.compile(r"(.+?)(\d{2})(\d{2})(\d{2})([CP])(\d{8})")
+
+
+def cboe_chain_rows(payload: dict, symbol: str) -> list[dict]:
+    """Cboe's delayed-quotes feed -> chain rows. A contract's symbol holds its root, expiry, type and strike.
+
+    The feed mixes in other products (roots like B1SPY) with blank trade times. Keep only this symbol's
+    own contracts; an index has several roots of its own (SPX and SPXW).
+    """
+    data = payload["data"]
+    name = symbol.lstrip("^").upper()
+    rows = []
+    for option in data.get("options") or []:
+        match = _OCC_SYMBOL.fullmatch(str(option.get("option") or ""))
+        if not match:
+            continue
+        contract_root, yy, mm, dd, kind, strike = match.groups()
+        if not (contract_root.startswith(name) if symbol.startswith("^") else contract_root == name):
+            continue
+        rows.append({
+            "expiration": f"20{yy}-{mm}-{dd}",
+            "strike": int(strike) / 1000,
+            "option_type": "call" if kind == "C" else "put",
+            "bid": option.get("bid"),
+            "ask": option.get("ask"),
+            "last_trade_price": option.get("last_trade_price"),
+            "volume": option.get("volume"),
+            "open_interest": option.get("open_interest"),
+            "implied_volatility": option.get("iv"),
+            "delta": option.get("delta"),
+            "underlying_price": data.get("current_price"),
+        })
+    return rows
+
+
+def cboe_direct_chain(symbol: str, expiration: str | None = None) -> dict:
+    # Read directly because OpenBB's reader crashes on chains containing those other products (SPY, IWM,
+    # TSLA and NVDA, as of November 2026). It's the same feed: every value matched on 3,476 AAPL contracts.
+    # OpenBB's model declares this feed's iv as a decimal, so 0.2656 means 26.56%.
+    if not re.fullmatch(r"\^?[A-Z]{1,6}", symbol.upper()):
+        raise NoData(f"Cboe's feed has no contracts under the name {symbol}")
+    feed = symbol.upper().replace("^", "_")
+    request = urllib.request.Request(CBOE_FEED.format(symbol=feed), headers={"User-Agent": "FinHub"})
+    with urllib.request.urlopen(request, timeout=25) as response:
+        payload = json.load(response)
+    return chain_view(cboe_chain_rows(payload, symbol.upper()), symbol, expiration, date.today(), "fraction")
+
+
+def earnings_rows(rows: list[dict]) -> list[dict]:
+    out = [
+        {
+            "date": _date(r.get("report_date")),
+            "symbol": _text(r.get("symbol")),
+            "name": _text(r.get("name")),
+            "eps_consensus": _num(r.get("eps_consensus")),
+            "eps_previous": _num(r.get("eps_previous")),
+            "estimates": _num(r.get("num_estimates")),
+            "period": _text(r.get("period_ending")),
+            "time": _text(r.get("reporting_time")),
+            "market_cap": _num(r.get("market_cap")),
+        }
+        for r in rows
+    ]
+    return [r for r in out if r["date"] and r["symbol"]]
+
+
+def openbb_earnings_calendar(provider: str) -> Callable[..., dict]:
+    def fetch(days: int = 7) -> dict:
+        today = date.today()
+        rows = earnings_rows(_rows(obb().equity.calendar.earnings(start_date=today, end_date=today + timedelta(days=days), provider=provider)))
+        if not rows:
+            raise NoData("no earnings in that window")
+        return {"rows": rows}
+
+    return fetch
+
+
+def economic_rows(rows: list[dict]) -> list[dict]:
+    # Actual, consensus and previous stay text ("1,178.4B", "0.3%"): each event has its own unit.
+    out = [
+        {
+            "date": str(r.get("date"))[:16] if r.get("date") else None,
+            "country": _text(r.get("country")),
+            "event": _text(r.get("event")),
+            "actual": _text(r.get("actual")),
+            "consensus": _text(r.get("consensus")),
+            "previous": _text(r.get("previous")),
+        }
+        for r in rows
+    ]
+    return sorted((r for r in out if r["date"] and r["event"]), key=lambda r: r["date"])
+
+
+def openbb_economic_calendar(provider: str) -> Callable[..., dict]:
+    def fetch(days: int = 7) -> dict:
+        today = date.today()
+        rows = economic_rows(_rows(obb().economy.calendar(start_date=today, end_date=today + timedelta(days=days), provider=provider)))
+        if not rows:
+            raise NoData("no economic events in that window")
+        return {"rows": rows}
+
+    return fetch
+
+
+def openbb_filings(provider: str) -> Callable[..., dict]:
+    def fetch(symbol: str) -> dict:
+        rows = [
+            {
+                "date": _date(r.get("filing_date")),
+                "form": _text(r.get("report_type")),
+                "description": _text(r.get("primary_doc_description")),
+                "items": _text(r.get("items")),
+                "accession": _text(r.get("accession_number")),
+                "url": _text(r.get("report_url")),
+            }
+            for r in _rows(obb().equity.fundamental.filings(symbol=symbol, provider=provider, limit=100))
+        ]
+        rows = [r for r in rows if r["date"] and r["form"]]
+        if not rows:
+            raise NoData(f"no filings for {symbol}")
+        return {"symbol": symbol.upper(), "rows": rows}
+
+    return fetch
+
+
+def is_fund(symbol: str, provider: str) -> bool:
+    """Whether a symbol is an ETF or mutual fund. Yahoo labels it; failing that, only funds report costs."""
+    try:
+        kind = _yf().Ticker(symbol).fast_info.get("quoteType")
+    except Exception:
+        kind = None
+    if kind:
+        return str(kind).upper() in ("ETF", "MUTUALFUND")
+    info = _first(obb().etf.info(symbol, provider=provider))
+    return info.get("expense_ratio") is not None or info.get("aum") is not None
+
+
+def openbb_etf_holdings(provider: str) -> Callable[..., dict]:
+    def fetch(symbol: str) -> dict:
+        # Ask first: for a stock, Nasdaq answers with the funds that hold it, in the same shape as a fund's
+        # own holdings, so AAPL would show "GXPT, 21%" as if Apple held that fund.
+        if not is_fund(symbol, provider):
+            raise NoData(f"{symbol} isn't an ETF")
+        results = obb().etf.holdings(symbol, provider=provider).results
+        rows = [
+            {"symbol": _text(d.get("symbol")), "name": _text(d.get("name")), "weight": _num(d.get("weight"))}
+            for d in (r.model_dump() for r in results)
+        ]
+        rows = [r for r in rows if r["weight"] is not None and r["symbol"]]
+        if not rows:
+            raise NoData(f"no holdings published for {symbol}")
+        return {"symbol": symbol.upper(), "weight_kind": _unit_kind(results[0], "weight"), "rows": sorted(rows, key=lambda r: r["weight"], reverse=True)}
+
+    return fetch
+
+
+def _tenor_years(tenor: str) -> float | None:
+    """Years to maturity from a label like "1 Mo", "1.5 Month", "10 Yr" or month_3, year_10, week_4."""
+    m = re.fullmatch(r"(?:(\d+(?:\.\d+)?)\s*(mo|month|yr|year|wk|week)s?|(month|year|week)_(\d+))", tenor.strip().lower())
+    if not m:
+        return None
+    number, unit = (float(m[1]), m[2]) if m[1] else (float(m[4]), m[3])
+    return number * {"m": 1 / 12, "y": 1.0, "w": 1 / 52}[unit[0]]
+
+
+def parse_treasury_csv(text: str) -> list[dict]:
+    """Treasury's daily par yield curve CSV (percent, newest first) -> curves, oldest first."""
+    table = list(csv.reader(io.StringIO(text)))
+    if len(table) < 2 or table[0][0].strip().lower() != "date":
+        raise NoData("unexpected Treasury file layout")
+    tenors = [(i, name.strip(), _tenor_years(name)) for i, name in enumerate(table[0]) if i and _tenor_years(name) is not None]
+    curves = []
+    for row in table[1:]:
+        try:
+            day = datetime.strptime(row[0].strip(), "%m/%d/%Y").date().isoformat()
+        except (ValueError, IndexError):
+            continue
+        points = [
+            {"tenor": name, "years": years, "value": _num(row[i])}
+            for i, name, years in tenors
+            if i < len(row) and _num(row[i]) is not None
+        ]
+        if points:
+            curves.append({"date": day, "points": sorted(points, key=lambda p: p["years"])})
+    if not curves:
+        raise NoData("the Treasury file had no yields")
+    return sorted(curves, key=lambda c: c["date"])
+
+
+TREASURY_CSV = (
+    "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/daily-treasury-rates.csv/"
+    "{year}/all?type=daily_treasury_yield_curve&field_tdr_date_value={year}&page&_format=csv"
+)
+
+
+def treasury_curve() -> dict:
+    curves: list[dict] = []
+    errors: list[str] = []
+    year = date.today().year
+    for y in (year - 1, year):  # last year too, for the comparison a year back and for early January
+        try:
+            request = urllib.request.Request(TREASURY_CSV.format(year=y), headers={"User-Agent": "FinHub"})
+            with urllib.request.urlopen(request, timeout=25) as response:
+                curves += parse_treasury_csv(response.read().decode("utf-8-sig"))
+        except Exception as exc:
+            errors.append(f"{y}: {type(exc).__name__}: {str(exc)[:120]}")
+    if not curves or curves[-1]["date"][:4] != str(year) and date.today().month > 1:
+        raise NoData("; ".join(errors) or f"no {year} Treasury data")
+    return {"unit_kind": "percent", "unit": "percent, as published by the Treasury", "curves": sorted(curves, key=lambda c: c["date"])}
+
+
+def federal_reserve_curve() -> dict:
+    results = obb().fixedincome.government.treasury_rates(provider="federal_reserve", start_date=date.today() - timedelta(days=400)).results
+    if not results:
+        raise NoData("no Federal Reserve yields")
+    curves = []
+    names = [n for n in type(results[0]).model_fields if _tenor_years(n) is not None]
+    for r in results:
+        d = r.model_dump()
+        points = [{"tenor": n, "years": _tenor_years(n), "value": _num(d.get(n))} for n in names if _num(d.get(n)) is not None]
+        if points and d.get("date"):
+            curves.append({"date": _date(d["date"]), "points": sorted(points, key=lambda p: p["years"])})
+    if not curves:
+        raise NoData("no usable Federal Reserve yields")
+    kind = _unit_kind(results[0], names[0])
+    return {
+        "unit_kind": kind,
+        "unit": "fraction (OpenBB normalised percent)" if kind == "fraction" else "not stated by the provider",
+        "curves": sorted(curves, key=lambda c: c["date"]),
+    }
+
+
 FETCHERS: dict[str, dict[str, Callable[..., dict]]] = {
+    "insider": {p: on_obb_thread(openbb_insider(p)) for p in ("sec", "nasdaq")},
+    "institutional": {"nasdaq": on_obb_thread(openbb_institutional("nasdaq"))},
+    "short_interest": {p: on_obb_thread(openbb_short_interest(p)) for p in ("nasdaq", "finra")},
+    "options_chain": {"cboe_direct": cboe_direct_chain, **{p: on_obb_thread(openbb_options_chain(p)) for p in ("cboe", "nasdaq")}},
+    "earnings_calendar": {"nasdaq": on_obb_thread(openbb_earnings_calendar("nasdaq"))},
+    "economic_calendar": {"nasdaq": on_obb_thread(openbb_economic_calendar("nasdaq"))},
+    "filings": {"sec": on_obb_thread(openbb_filings("sec"))},
+    "etf_holdings": {"nasdaq": on_obb_thread(openbb_etf_holdings("nasdaq"))},
+    "yield_curve": {"treasury": treasury_curve, "federal_reserve": on_obb_thread(federal_reserve_curve)},
     "quote": {"yahoo": yahoo_quote, **{p: on_obb_thread(openbb_quote(p)) for p in ("cboe", "nasdaq", "tmx")}},
     "history": {"yahoo": yahoo_history, **{p: on_obb_thread(openbb_history(p)) for p in ("cboe", "nasdaq", "tmx")}},
     "profile": {"yahoo": yahoo_profile, **{p: on_obb_thread(openbb_profile(p)) for p in ("nasdaq", "tmx", "finra")}},

@@ -22,6 +22,14 @@ _protocol = os.fdopen(os.dup(sys.stdout.fileno()), "w", buffering=1, encoding="u
 os.dup2(sys.stderr.fileno(), sys.stdout.fileno())
 sys.stdout = sys.stderr
 
+# Requests move off stdin too, because child processes inherit it. On Windows, a child that touches a
+# pipe this process is blocked reading hangs until the next line arrives, and OpenBB runs `git` as it
+# loads: a first request with nothing after it would never finish. os.dup's copy isn't inherited.
+_requests = os.fdopen(os.dup(sys.stdin.fileno()), "r", encoding="utf-8")
+_null = os.open(os.devnull, os.O_RDONLY)
+os.dup2(_null, sys.stdin.fileno())
+os.close(_null)
+
 import providers  # noqa: E402  (imported after the stdout swap on purpose)
 
 _write_lock = threading.Lock()
@@ -62,7 +70,7 @@ def handle(request: dict) -> None:
 
 def main() -> None:
     pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix="req")
-    for line in sys.stdin:  # ends when the backend closes our stdin or exits
+    for line in _requests:  # ends when the backend closes our stdin or exits
         line = line.strip()
         if not line:
             continue

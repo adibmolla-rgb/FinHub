@@ -16,7 +16,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from fastapi.middleware.cors import CORSMiddleware
 
-from finhub_backend import __version__, agent, alerts, backtest, engines, fundamentals, installer, macro, market, risk, screener, sim, store
+from finhub_backend import __version__, agent, alerts, backtest, engines, fundamentals, installer, macro, market, portfolio, research, risk, screener, sim, store
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -182,6 +182,76 @@ def macro_dashboard(country: str, years: int = Query(10, ge=1, le=40)):
         return _market(macro.dashboard, country, years)
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+class PortfolioTransaction(BaseModel):
+    symbol: str
+    side: str
+    quantity: float
+    price: float | None = None
+    fees: float = 0.0
+    date: str | None = None
+
+
+@app.get("/portfolio")
+def portfolio_report() -> dict:
+    try:
+        return portfolio.report()
+    except portfolio.LedgerError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+
+@app.post("/portfolio/transactions")
+def portfolio_add(t: PortfolioTransaction) -> dict:
+    try:
+        return portfolio.add(t.symbol, t.side, t.quantity, t.price, t.fees, t.date)
+    except portfolio.LedgerError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+
+@app.delete("/portfolio/transactions/{transaction_id}")
+def portfolio_remove(transaction_id: str) -> dict:
+    try:
+        if not portfolio.remove(transaction_id):
+            raise HTTPException(status_code=404, detail="no such transaction")
+    except portfolio.LedgerError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return {"deleted": transaction_id}
+
+
+@app.get("/research/ownership/{symbol}")
+def research_ownership(symbol: str):
+    return _market(research.ownership, _check(symbol))
+
+
+@app.get("/research/options/{symbol}")
+def research_options(symbol: str, expiration: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$")):
+    return _market(research.options_chain, _check(symbol), expiration)
+
+
+@app.get("/research/calendar")
+def research_calendar(
+    days: int = Query(7, ge=1, le=31),
+    symbols: str | None = Query(None, max_length=500),
+    limit: int | None = Query(None, ge=1, le=5000),
+):
+    wanted = [_check(s) for s in symbols.split(",") if s] if symbols else None
+    return _market(research.calendar, days, wanted, limit)
+
+
+@app.get("/research/filings/{symbol}")
+def research_filings(symbol: str):
+    return _market(research.filings, _check(symbol))
+
+
+@app.get("/research/etf/{symbol}")
+def research_etf(symbol: str):
+    return _market(research.etf_holdings, _check(symbol))
+
+
+@app.get("/research/curve")
+def research_curve():
+    return _market(research.yield_curve)
 
 
 @app.get("/market/sources")

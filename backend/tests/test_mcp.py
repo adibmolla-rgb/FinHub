@@ -85,11 +85,14 @@ def test_stdio_protocol_end_to_end():
         tools = {t["name"]: t for t in recv(2)["result"]["tools"]}
         assert {"finhub_quote", "finhub_history", "finhub_backtest", "finhub_portfolio_risk", "finhub_price_option", "finhub_watchlist",
                 "finhub_arena_state", "finhub_arena_order", "finhub_arena_cancel", "finhub_arena_advance",
-                "finhub_fundamentals", "finhub_macro", "finhub_screen", "finhub_add_alert", "finhub_alerts"} <= set(tools)
+                "finhub_fundamentals", "finhub_macro", "finhub_screen", "finhub_add_alert", "finhub_alerts",
+                "finhub_ownership", "finhub_options_chain", "finhub_calendar", "finhub_filings", "finhub_etf_holdings", "finhub_yield_curve", "finhub_portfolio"} <= set(tools)
         assert tools["finhub_add_alert"]["annotations"]["readOnlyHint"] is False
         assert tools["finhub_arena_order"]["annotations"]["readOnlyHint"] is False
         assert "SIMULATED" in tools["finhub_arena_order"]["description"]
         assert tools["finhub_quote"]["annotations"]["readOnlyHint"] is True
+        assert tools["finhub_ownership"]["annotations"]["readOnlyHint"] is True
+        assert tools["finhub_portfolio"]["annotations"]["readOnlyHint"] is True
         send({"jsonrpc": "2.0", "id": 3, "method": "tools/call", "params": {"name": "finhub_price_option", "arguments": {
             "option_type": "call", "spot": 100, "strike": 100, "days_to_expiry": 365, "volatility": 0.2, "rate": 0.05}}})
         res = recv(3)["result"]
@@ -112,6 +115,19 @@ def test_arena_tools_trade_through_the_app(monkeypatch):
     st = mcp_server.finhub_arena_state("claude")
     assert st["step"] == 70 and st["your_account"]["position"] == 50
     assert any(r["name"] == "claude" for r in st["leaderboard"])
+
+
+def test_screen_tool_uses_the_tickers_it_was_given(monkeypatch):
+    sent = {}
+
+    def fake_call(method, path, **kwargs):
+        sent.update(kwargs["json"])
+        return {"matches": []}
+
+    monkeypatch.setattr(mcp_server, "_call", fake_call)
+    mcp_server.finhub_screen(symbols=["AAA", "BBB"])
+    assert sent["universe"] == "custom"
+    assert sent["symbols"] == ["AAA", "BBB"]
 
 
 def test_alert_and_screen_tools_go_through_the_app(monkeypatch, tmp_path):

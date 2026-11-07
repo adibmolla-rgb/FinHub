@@ -13,12 +13,15 @@ import { FundamentalsWorkspace } from './Fundamentals'
 import { CompareWorkspace } from './quant/CompareView'
 import { ArenaWorkspace } from './sim/Arena'
 import { MacroWorkspace } from './Macro'
+import { ResearchWorkspace, type ResearchView } from './Research'
+import { PortfolioWorkspace } from './Portfolio'
+import { openExternalLinksInBrowser } from './links'
 import { AlertsWorkspace } from './Alerts'
 import { ScreenerWorkspace } from './Screener'
 import { DemoHome } from './DemoHome'
 import { DEMO_COMMANDS, WEB_DEMO } from './demo'
 import { notify } from './notify'
-import { alertsApi, type AlertEvent } from './api'
+import { alertsApi, portfolioApi, type AlertEvent } from './api'
 import { SimWorkspace } from './sim/Sim'
 import { OptionsWorkspace } from './quant/OptionsLab'
 import { BacktestWorkspace, type BacktestPreset } from './quant/Backtest'
@@ -49,6 +52,8 @@ type Workspace =
   | { kind: 'arena' }
   | { kind: 'learn' }
   | { kind: 'macro'; country: string; nonce: number }
+  | { kind: 'research'; view: ResearchView; nonce: number }
+  | { kind: 'portfolio' }
   | { kind: 'alerts' }
   | { kind: 'screen' }
   | { kind: 'opt'; symbol?: string; nonce: number }
@@ -95,6 +100,7 @@ export default function App() {
   }, [history])
   const [watchVersion, setWatchVersion] = useState(0)
   const [alertsVersion, setAlertsVersion] = useState(0)
+  const [portfolioVersion, setPortfolioVersion] = useState(0)
   const [toast, setToast] = useState<AlertEvent | null>(null)
   const [flash, setFlash] = useState<string | null>(null)
   useEffect(() => {
@@ -233,6 +239,8 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
+  useEffect(() => openExternalLinksInBrowser(), [])
+
   const closeReceipt = useCallback(() => setReceipt(null), [])
 
   function submit(text?: string) {
@@ -293,6 +301,18 @@ export default function App() {
         break
       case 'macro':
         setWorkspace({ kind: 'macro', country: result.country, nonce: Date.now() })
+        break
+      case 'portfolio':
+        setWorkspace({ kind: 'portfolio' })
+        if (result.add) {
+          portfolioApi.add(result.add).then(() => setPortfolioVersion((v) => v + 1), (e) => {
+            setFlash(`Not recorded: ${e.message}`)
+            setLog((l) => [{ at: new Date(), input, message: `Not recorded: ${e.message}`, ok: false }, ...l])
+          })
+        }
+        break
+      case 'research':
+        setWorkspace({ kind: 'research', view: result.view, nonce: Date.now() })
         break
       case 'learn':
         setWorkspace({ kind: 'learn' })
@@ -455,6 +475,10 @@ export default function App() {
         <AlertsWorkspace version={alertsVersion} />
       ) : workspace.kind === 'macro' ? (
         <MacroWorkspace key={workspace.nonce} country={workspace.country} onReceipt={setReceipt} />
+      ) : workspace.kind === 'portfolio' ? (
+        <PortfolioWorkspace key={refreshKey} version={portfolioVersion} onReceipt={setReceipt} onOpen={(cmd) => submit(cmd)} />
+      ) : workspace.kind === 'research' ? (
+        <ResearchWorkspace key={`${workspace.nonce}-${refreshKey}`} view={workspace.view} onReceipt={setReceipt} onOpen={(cmd) => submit(cmd)} />
       ) : workspace.kind === 'learn' ? (
         <LearnWorkspace onRun={(cmd) => submit(cmd)} canRun={WEB_DEMO ? (cmd) => DEMO_COMMANDS.has(runCommand(cmd).kind) : undefined} />
       ) : workspace.kind === 'arena' ? (

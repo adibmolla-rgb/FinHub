@@ -84,7 +84,7 @@ export function SystemPanel(props: {
             <tr>
               <th>Provider</th>
               <th>Status</th>
-              <th>OK / failed</th>
+              <th>OK / no data / failed</th>
               <th>Last error</th>
             </tr>
           </thead>
@@ -96,7 +96,7 @@ export function SystemPanel(props: {
                   {s.status}
                   {s.status === 'ok' && s.last_ok_at ? <span className="muted"> · {timeAgo(s.last_ok_at)}</span> : null}
                 </td>
-                <td className="muted">{s.successes} / {s.failures}</td>
+                <td className="muted">{s.successes} / {s.no_data} / {s.failures}</td>
                 <td className="muted error-text">{s.last_error ?? '—'}</td>
               </tr>
             ))}

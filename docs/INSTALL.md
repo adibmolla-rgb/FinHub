@@ -99,7 +99,7 @@ To use FinHub *from* Claude instead, see [AI_ASSISTANTS.md](AI_ASSISTANTS.md).
 | Linux | `~/.local/share/app.finhub.terminal` |
 
 Inside: `envs/` (its private Python environments), `logs/` (start here if something goes wrong),
-`agent-settings.json`, `watchlist.json`, `alerts.json`, and `vibe-trading/` (saved agent runs).
+`agent-settings.json`, `watchlist.json`, `alerts.json`, `portfolio.json`, and `vibe-trading/` (saved agent runs).
 
 ## Troubleshooting
 
@@ -115,7 +115,7 @@ Inside: `envs/` (its private Python environments), `logs/` (start here if someth
 | Anything else | Open an issue with the files from `logs/`. |
 
 To start completely fresh, quit FinHub and delete the data folder (you will lose your watchlist,
-alerts, AI settings and saved agent runs).
+alerts, portfolio, AI settings and saved agent runs).
 
 ## Updating and uninstalling
 

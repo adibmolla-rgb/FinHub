@@ -9,6 +9,7 @@ Rules:
 
 from __future__ import annotations
 
+import re
 import threading
 
 from dataclasses import dataclass, field
@@ -47,8 +48,10 @@ def set_worker(w: EngineWorker | None) -> None:
 @dataclass
 class SourceHealth:
     provider: str
+    status: str = "unknown"
     successes: int = 0
     failures: int = 0
+    no_data: int = 0
     last_ok_at: str | None = None
     last_error_at: str | None = None
     last_error: str | None = None
@@ -58,6 +61,11 @@ class SourceHealth:
 
 _health: dict[str, SourceHealth] = {}
 _health_lock = threading.Lock()
+
+
+# The provider answered, and it has nothing for that ticker, date or country. That says something about the
+# request, not about the provider, so SYS shouldn't call the provider failing.
+_NO_DATA = re.compile(r"^NoData\b|EmptyDataError|\[Empty\]|CIK not found|Invalid value '|HTTP 404")
 
 
 def record_attempts(kind: str, attempts: list[dict]) -> None:
@@ -70,22 +78,21 @@ def record_attempts(kind: str, attempts: list[dict]) -> None:
             if a["ok"]:
                 h.successes += 1
                 h.last_ok_at = now
+                h.status = "ok"
+                continue
+            h.last_error_at = now
+            h.last_error = a.get("error")
+            if _NO_DATA.search(a.get("error") or ""):
+                h.no_data += 1
+                h.status = "no data"
             else:
                 h.failures += 1
-                h.last_error_at = now
-                h.last_error = a.get("error")
+                h.status = "failing"
 
 
 def source_health() -> list[dict]:
     with _health_lock:
-        out = []
-        for h in _health.values():
-            status = "unknown"
-            if h.last_ok_at and (not h.last_error_at or h.last_ok_at >= h.last_error_at):
-                status = "ok"
-            elif h.last_error_at:
-                status = "failing"
-            out.append({**h.__dict__, "kinds": sorted(h.kinds), "status": status})
+        out = [{**h.__dict__, "kinds": sorted(h.kinds)} for h in _health.values()]
         return sorted(out, key=lambda d: d["provider"])
 
 

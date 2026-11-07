@@ -20,7 +20,7 @@ function SourceBadge({ meta }: { meta: Meta }) {
   )
 }
 
-function DataError({ error, what }: { error: ApiError | Error; what: string }) {
+export function DataError({ error, what }: { error: ApiError | Error; what: string }) {
   const attempts = error instanceof ApiError ? error.attempts : []
   const engineMissing = /engine not installed/.test(error.message)
   return (
@@ -52,7 +52,7 @@ function Loading({ what }: { what: string }) {
   return <p className="muted">Loading {what}… (the first request after launch waits for the data engine to start)</p>
 }
 
-function Val({ r, onReceipt, className }: { r: Receipt | undefined; onReceipt: (r: Receipt) => void; className?: string }) {
+export function Val({ r, onReceipt, className }: { r: Receipt | undefined; onReceipt: (r: Receipt) => void; className?: string }) {
   if (!r) return <span className="muted">—</span>
   return (
     <button className={`val ${className ?? ''}`} onClick={() => onReceipt(r)} title="Show receipt">

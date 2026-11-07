@@ -23,10 +23,18 @@ Contents: [Commands](#command-reference) · [Receipts](#receipts) · [Walkthroug
 | *range* | `6M` | Change the open chart's range. |
 | `FA` | `FA AAPL` | Income statement, balance sheet, cash flow (annual or quarterly), and key ratios: margins, revenue growth, ROE, ROA, debt/equity, free cash flow. |
 | `MACRO` | `MACRO GB` | OECD CPI inflation, unemployment, short and long interest rates, and real GDP, with 10-year charts. Countries by code (`US GB JP DE FR CA IT AU KR MX ES NL CH SE NO NZ IE PL TR BR ZA IN CN`) or name (`MACRO united kingdom`). |
+| `OWN` | `OWN AAPL` | Insider trades from SEC Form 4, the largest institutional holders from 13F filings, and short interest with days to cover. Insider totals count only open-market or private trades in common stock over the last 90 days: grants, option exercises, gifts and tax withholding are listed but not counted. 13F and short interest data lag, so check their dates. |
+| `CHAIN` | `CHAIN AAPL`, `CHAIN AAPL 2027-01-15` | Live options chain for one expiration (by default the first a week or more out; pick another from the menu), a volatility smile, at-the-money implied vol and put/call ratios. Shows strikes within 25% of the price unless you choose **All strikes**. Quotes can be delayed. |
+| `CAL` | `CAL`, `CAL 14` | Earnings and economic events for the next 7 days, or 1 to 31. Filter earnings by name or your watchlist, and events by country. Economic figures are shown exactly as published. |
+| `FILINGS` | `FILINGS AAPL` | A US-listed company's latest SEC filings, filterable by form, with links to each document. |
+| `ETF` | `ETF SPY` | An ETF's largest holdings and their weights. This is only part of the fund: the panel says how much of it the listed holdings cover. |
+| `CURVE` | `CURVE` | US Treasury par yields by maturity, compared with a month and a year earlier, and the 10-year minus 2-year and 10-year minus 3-month spreads. A negative spread means the curve is inverted. |
 | `CMP` | `CMP AAPL MSFT NVDA` | 2 to 8 tickers on one growth-of-1 chart (dividend-adjusted), with return, CAGR, volatility, Sharpe, max drawdown and correlations. |
 | `SCREEN` | `SCREEN` | Filter a universe (built-in ~60 large caps, your watchlist, or tickers you type) by price, day change, market cap, distance from the 52-week high/low, and sector. Click a column to sort. |
 | `W` | `W NVDA`, `W -NVDA` | Add to / remove from the watchlist on the home screen. |
 | `ALERT` | `ALERT AAPL > 200`, `ALERT AAPL < 150`, `ALERT NVDA +5%`, `ALERT NVDA -5%` | One-shot alerts on a price level or the day's move. Checked every 2 minutes while FinHub is open; you get a banner and a desktop notification. `ALERTS` lists them. |
+
+Commands take priority over tickers of the same name. To open a company whose ticker is also a command, use `EQ`: `EQ CAL` opens Caleres.
 
 Chart indicators: toggle `SMA20 SMA50 SMA200 EMA20 BB RSI` on the chart toolbar (remembered).
 
@@ -35,6 +43,7 @@ Chart indicators: toggle `SMA20 SMA50 SMA200 EMA20 BB RSI` on the chart toolbar 
 | Command | Example | What it does |
 |---|---|---|
 | `BACKTEST` | `BACKTEST SPY sma 20 50`, `BACKTEST QQQ momentum 126`, `BACKTEST GLD meanrev 20 2` | FinHub's backtester. See [Testing a strategy](#testing-a-strategy-properly). |
+| `PORT` | `PORT`, `PORT BUY AAPL 10 150`, `PORT SELL AAPL 5 180 2026-03-01 fee=1.50`, `PORT SPLIT NVDA 10` | Your own record of trades, valued at live prices. See [Tracking your portfolio](#tracking-your-portfolio). |
 | `RISK` | `RISK SPY 60 TLT 30 GLD 10` | Portfolio risk (ticker then weight; weights are normalised). See [Measuring portfolio risk](#measuring-portfolio-risk). |
 | `OPT` | `OPT`, `OPT AAPL` | Options lab; with a ticker it starts from the live price. See [Pricing options](#pricing-options-and-strategies). |
 
@@ -150,6 +159,30 @@ to show you that rather than hide it. **Copy metrics** / **Copy equity curve** p
 - **Alternative weights**: minimum-variance and maximum-Sharpe portfolios with **±** error bars from
   resampling history. Large ± means the "optimal" weights are mostly noise.
 
+### Tracking your portfolio
+
+`PORT` is a record you keep yourself. It has no broker connection and can't place orders.
+
+1. Add a trade from the form in the panel, or type it: `PORT BUY AAPL 10 150`. Add a date and fees if you
+   want them: `PORT SELL AAPL 5 180 2026-03-01 fee=1.50`.
+2. Enter prices in the currency the ticker is quoted in. London tickers are often quoted in pence.
+3. When a company splits its shares, record it yourself: `PORT SPLIT NVDA 10` for a 10-for-1 split, or
+   `PORT SPLIT XYZ 0.5` for a 1-for-2 reverse split. FinHub doesn't detect splits, and profit would be wrong
+   without this.
+4. Click **Measure risk** to open `RISK` with your current weights.
+
+How the numbers work:
+
+- Cost basis is first-in, first-out, with fees included. Trades are worked through in date order, so you can
+  enter old ones in any order. A sale of more than you held on that date is refused.
+- Dividends aren't recorded, so returns are price returns.
+- If a holding has no live price, value and cost totals are left out until it does, because a smaller total
+  would look complete.
+- Each currency has its own totals. They're never converted or added together.
+
+Your trades are stored only on this computer, in `portfolio.json` in your FinHub data folder. If that file
+is damaged, FinHub says so and won't change it.
+
 ### Pricing options and strategies
 
 `OPT` (or `OPT AAPL`). Enter spot, strike, days, volatility, rate and dividend yield as you'd write
@@ -182,15 +215,24 @@ arena: look at the order book and recent trades, then try to make money over 200
 | News | Yahoo → Nasdaq → TMX |
 | Financial statements | Yahoo → SEC filings → Nasdaq → TMX |
 | Macro | OECD |
+| Insider trades | SEC filings → Nasdaq |
+| Institutional holders | Nasdaq |
+| Short interest | Nasdaq → FINRA |
+| Options chains | Cboe's delayed feed → Cboe via OpenBB → Nasdaq |
+| Earnings and economic calendars | Nasdaq |
+| SEC filings | SEC |
+| ETF holdings | Nasdaq |
+| Treasury yields | US Treasury → Federal Reserve |
 
 Every panel says which provider served it and whether a fallback was needed; `SYS` tracks each
 provider's recent successes and failures. Backtests, risk and comparisons use prices adjusted for
-splits and dividends; the ticker chart shows prices as traded.
+splits and dividends; the ticker chart shows prices as traded. Insider totals only appear when the data
+comes from SEC filings, and implied volatility only when the provider supplies it in a declared unit.
 
 ## Tips
 
 - Everything works from the keyboard; the mouse is optional.
 - **Copy CSV** buttons appear on backtests, statements, comparisons and the screener.
-- Your watchlist, alerts, AI settings and agent history live in your FinHub data folder
+- Your watchlist, alerts, portfolio, AI settings and agent history live in your FinHub data folder
   ([where](INSTALL.md#where-finhub-keeps-its-files)).
 - If a panel shows "Couldn't load…", the table under it lists every provider tried and why it failed.

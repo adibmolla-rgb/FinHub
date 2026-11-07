@@ -22,6 +22,9 @@ app/                           Tauri 2 + React 19 + TypeScript (Vite)
   src/App.tsx                  Workspaces, command dispatch, polling (health, engines, sources, alerts).
   src/commands.ts              Command parser + COMMANDS table (drives HELP and suggestions).
   src/api.ts                   Typed client for every backend endpoint; formatValue() renders receipts.
+  src/Research.tsx             The six research panels.
+  src/Portfolio.tsx            PORT.
+  src/links.ts                 Sends external links to the browser; the webview drops them otherwise.
   src/quant/                   options.ts, indicators.ts, compare.ts (pure maths, unit-tested) and screens.
   src/sim/                     SIM: engine.ts (order book), market.ts (bots), Sim.tsx; Arena.tsx (ARENA UI).
   src/demo.ts                  Web-demo mode flags (pnpm build:web).
@@ -35,6 +38,8 @@ backend/src/finhub_backend/
   market.py                    Quotes/history/profile/news → receipts; provider attempts and health.
   backtest.py, risk.py         numpy analytics (see the rules below).
   fundamentals.py, macro.py    Statement ratios and OECD series with receipts.
+  portfolio.py                 PORT: the trade ledger, FIFO cost basis and valuation.
+  research.py                  OWN, CHAIN, CAL, FILINGS, ETF and CURVE: raw rows to summaries with receipts.
   screener.py, alerts.py       Screener over an explicit universe; one-shot alerts + background loop.
   sim.py                       Python port of the simulator: the shared ARENA market.
   agent.py, store.py           Vibe-Trading agent process + settings; watchlist and saved agent runs.
@@ -52,16 +57,16 @@ it runs them as subprocesses that exit when their stdin closes.
 
 ```bash
 # Backend
-cd backend && uv sync && uv run pytest -q            # 82 tests
+cd backend && uv sync && uv run pytest -q            # 141 tests
 uv run finhub-backend                                 # API on 127.0.0.1:8765
 uv run finhub-mcp                                     # MCP server (stdio)
 
 # Data worker
-cd engines/openbb && uv sync && uv run pytest -q      # 10 tests (network-free)
+cd engines/openbb && uv sync && uv run pytest -q      # 36 tests (network-free)
 
 # App
 cd app && pnpm install
-pnpm test        # vitest: 78 tests (maths, parser, course content, file-name clash check)
+pnpm test        # vitest: 85 tests (maths, parser, course content, file-name clash check)
 pnpm lint
 pnpm build       # tsc + vite (also what CI's tauri build runs first)
 pnpm build:web   # static web demo into dist-web/
@@ -100,6 +105,15 @@ Release; `pages.yml` (manual) publishes the web demo.
 10. **Never fake data in the UI.** Tests and screenshots may use synthetic data, clearly labelled.
 11. **No worker during an engine install.** A package folder without its `__init__.py` yet imports as an
     empty namespace package, and that process keeps it for life. `installer` holds the worker during `uv sync`.
+12. **The worker's child processes must not inherit its request pipe.** On Windows they hang while the worker
+    blocks reading it, and OpenBB runs `git` as it loads. Test engine changes with a lone request as well as
+    in the app, whose polling hides this kind of hang.
+13. **Providers can answer a different question in the same shape.** Asked for a stock's ETF holdings, Nasdaq
+    returns the funds that hold it. Check live output for wrong inputs too, not just right ones. Try the
+    popular tickers as well: OpenBB's Cboe reader works on AAPL but crashes on SPY, TSLA and NVDA.
+14. **Test upgrades, not just fresh installs.** `uv sync` decides whether to reinstall the backend from
+    `tool.uv.cache-keys`, and Windows file copies keep modified times. Without the source in those keys, an
+    upgrade leaves the old backend running behind the new UI.
 
 ## Adding things
 

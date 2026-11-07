@@ -103,6 +103,41 @@ def test_endpoint_returns_502_with_attempts_and_records_health(fake_worker):
     assert health["yahoo"]["status"] == "failing"
 
 
+def _health_of(provider):
+    return next(h for h in market.source_health() if h["provider"] == provider)
+
+
+@pytest.mark.parametrize(
+    "answer",
+    [
+        "NoData: no price for ZZZZ",
+        "EmptyDataError: \n[Empty] -> FINRA holds no short interest for ZZZZ.",
+        "OpenBBError: \n[Error] -> CIK not found for symbol ZZZZ",
+        "OpenBBError: \n[Error] -> Invalid value 'xx' for 'country' (provider: 'oecd').",
+        "OpenBBError: \n[Error] -> SEC request failed with HTTP 404: https://data.sec.gov/x.json",
+    ],
+)
+def test_having_nothing_for_a_ticker_is_not_a_provider_failure(answer):
+    name = f"answers-{abs(hash(answer))}"
+    market.record_attempts("quote", [{"provider": name, "ok": True, "ms": 1}])
+    market.record_attempts("quote", [{"provider": name, "ok": False, "error": answer, "ms": 1}])
+    health = _health_of(name)
+    assert health["status"] == "no data"
+    assert health["failures"] == 0
+    assert health["no_data"] == 1
+    assert health["last_error"] == answer  # still there to read in SYS
+
+
+def test_real_failures_still_show_and_recover():
+    market.record_attempts("quote", [{"provider": "flaky", "ok": False, "error": "ConnectionError: refused", "ms": 1}])
+    assert _health_of("flaky")["status"] == "failing"
+    assert _health_of("flaky")["failures"] == 1
+    market.record_attempts("quote", [{"provider": "flaky", "ok": False, "error": "NoData: no price for ZZZZ", "ms": 1}])
+    assert _health_of("flaky")["status"] == "no data"
+    market.record_attempts("quote", [{"provider": "flaky", "ok": True, "ms": 1}])
+    assert _health_of("flaky")["status"] == "ok"
+
+
 def test_bad_symbols_are_rejected():
     client = TestClient(app)
     assert client.get("/market/quote/rm%20-rf").status_code == 422

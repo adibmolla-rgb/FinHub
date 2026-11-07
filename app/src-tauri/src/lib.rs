@@ -234,6 +234,7 @@ pub fn run() {
                 .build(),
         )
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(shared.clone())
         .invoke_handler(tauri::generate_handler![backend_phase])
         .setup(move |app| {

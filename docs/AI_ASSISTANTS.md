@@ -82,6 +82,13 @@ All values follow one rule: **fractions are fractions** (0.05 = 5%) unless a fie
 | `finhub_history` | `symbol`, `range` (`1M`…`MAX`), `adjusted` (default true) | Daily closes (thinned to ≤1300 points) with provider and adjustment flag |
 | `finhub_fundamentals` | `symbol`, `period` (`annual`/`quarter`) | Three statements + key ratios with receipts |
 | `finhub_macro` | `country` (code or name) | OECD CPI, unemployment, interest rates, real GDP; `unit_kind` = `fraction` or `as_reported` (quote verbatim) |
+| `finhub_portfolio` | | The holdings recorded in `PORT`, at live prices: shares, cost basis, profit, weights and totals per currency. This is personal data, and the assistant's provider sees whatever a tool returns. Trades can only be entered in the app |
+| `finhub_ownership` | `symbol` | Insider trades, largest institutional holders and short interest; failed sections are named under `errors` |
+| `finhub_options_chain` | `symbol`, `expiration` (YYYY-MM-DD, optional) | One expiration of the live chain, all expirations, at-the-money implied vol and put/call ratios |
+| `finhub_calendar` | `days` (1 to 31), `symbols`, `limit` | Upcoming earnings (by date, then market cap) and economic events |
+| `finhub_filings` | `symbol` | Latest SEC filings with links to the documents |
+| `finhub_etf_holdings` | `symbol` | An ETF's largest holdings; `listed_weight` says how much of the fund they cover |
+| `finhub_yield_curve` | | US Treasury yields by maturity, a month and a year earlier, and the 10y-2y and 10y-3m spreads in basis points |
 | `finhub_screen` | `universe` (`large_caps`/`watchlist`/`custom`), `symbols`, `min_price`, `max_price`, `min_change`, `max_change`, `min_market_cap`, `max_from_high`, `min_from_low`, `sectors` | Matching tickers; tickers without quotes listed under `failed` |
 | `finhub_watchlist` | – | The user's watchlist |
 | `finhub_alerts` | – | The user's alerts and recent alert events |

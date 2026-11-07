@@ -8,8 +8,29 @@
   quizzes with explanations, try-it buttons that run FinHub commands, resources, and progress saved
   locally. Tracks carry an `access` flag (`free`/`premium`) for future paid courses; no payments yet.
 
+- `PORT`: your own record of buys, sells and splits, valued at live prices, with first-in, first-out cost
+  basis, profit, weights and a button that opens `RISK` with your weights. It can't place orders.
+- Six research panels, built on data the OpenBB engine already installs, each with an MCP tool:
+  `OWN` (insider trades, institutional holders, short interest), `CHAIN` (live options chain and volatility
+  smile), `CAL` (earnings and economic calendars), `FILINGS` (SEC filings), `ETF` (largest holdings) and
+  `CURVE` (US Treasury yield curve and spreads).
+- `CAL`, `CHAIN`, `CURVE`, `ETF`, `FILINGS`, `OWN` and `PORT` are now commands, so tickers with those names
+  open with `EQ`, for example `EQ CAL`.
+
 **Fixed**
 - The top-bar clock overflowed the screen on phones (web demo).
+- Installing a new version over an old one could keep running the old backend, because `uv` only looked at
+  `pyproject.toml`'s modified time and builds preserve it. New features then failed with "not found".
+- `SYS` and the status bar called a working data source "failing" after you asked for a ticker, date or country
+  it doesn't have. These now show as "no data", and "failing" means a real error.
+- CPI inflation in `MACRO` showed as 0.036 instead of 3.60%.
+- The `finhub_screen` MCP tool ignored `symbols` unless `universe` was also set to `custom`, and screened the
+  large caps instead.
+- Links did nothing in the desktop app on Windows, including news headlines and company websites. They now
+  open in your default browser.
+- The first market-data request after launch could hang on Windows until another request arrived, because
+  OpenBB runs `git` as it loads and `git` blocked on the data worker's request pipe. The app's polling hid
+  this; a lone request, such as one from an AI assistant over MCP, timed out.
 - On first launch, Yahoo could fail for the whole session with `module 'yfinance' has no attribute 'Ticker'`,
   leaving quotes on the Cboe fallback until a restart. The data worker no longer runs while its engine is
   being installed.

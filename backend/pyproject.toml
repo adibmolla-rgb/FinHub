@@ -29,5 +29,11 @@ dev = ["pytest>=8", "httpx>=0.27"]
 requires = ["uv_build>=0.11.32,<0.12.0"]
 build-backend = "uv_build"
 
+[tool.uv]
+# Installed apps run `uv sync` over the environment from the previous version. By default uv only reinstalls
+# this project when pyproject.toml's modified time changes, and builds keep that time, so an upgrade would keep
+# running the old backend. Watch the source as well.
+cache-keys = [{ file = "pyproject.toml" }, { file = "uv.lock" }, { file = "src/**/*.py" }]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

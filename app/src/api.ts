@@ -34,7 +34,7 @@ export type ReceiptExample = { note: string; receipt: Receipt }
 
 export type Attempt = { provider: string; ok: boolean; error: string | null; ms: number | null }
 
-type SourceMeta = {
+export type SourceMeta = {
   provider: string
   provider_name: string
   fetched_at: string
@@ -72,7 +72,8 @@ export type News = SourceMeta & { symbol: string; items: NewsItem[] }
 
 export type SourceHealth = {
   provider: string
-  status: 'ok' | 'failing' | 'unknown'
+  status: 'ok' | 'failing' | 'no data' | 'unknown'
+  no_data: number
   successes: number
   failures: number
   last_ok_at: string | null
@@ -201,7 +202,7 @@ export type AskKind = 'ask' | 'bt' | 'debate'
 export type AskStarted = { session_id: string; prompt: string; kind: AskKind; text: string }
 export type AgentMessage = { message_id: string; role: string; content: string; created_at: string }
 
-async function send<T>(path: string, method: 'POST' | 'PUT', body: unknown, timeoutMs = 240_000): Promise<T> {
+async function send<T>(path: string, method: 'POST' | 'PUT' | 'DELETE', body?: unknown, timeoutMs = 240_000): Promise<T> {
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), timeoutMs)
   try {
@@ -354,6 +355,102 @@ export type MacroSeries = {
 }
 export type MacroDashboard = { country: string; series: Record<string, MacroSeries>; errors: Record<string, string> }
 export const macroApi = { get: (country: string) => get<MacroDashboard>(`/macro/${enc(country)}`, DATA_TIMEOUT) }
+
+// ---------------------------------------------------------------------------------------------
+// Research panels (OWN, CHAIN, CAL, FILINGS, ETF, CURVE)
+// ---------------------------------------------------------------------------------------------
+
+export type InsiderRow = {
+  date: string; filed: string | null; owner: string | null; title: string | null; type: string | null
+  direction: string | null; security: string | null; shares: number; price: number | null
+  shares_after: number | null; plan_10b5_1: boolean; url: string | null
+}
+export type InsiderSummary = {
+  window_days: number; trades: number
+  sold_shares: Receipt; sold_value: Receipt; bought_shares: Receipt; bought_value: Receipt; sold_on_plan?: Receipt
+}
+export type HolderRow = { owner: string; date: string | null; shares: number; change: number | null; change_pct: number | null }
+export type ShortRow = { date: string; short: number; previous: number | null; avg_volume: number | null }
+export type Ownership = {
+  symbol: string
+  errors: Record<string, string>
+  insider?: SourceMeta & { rows: InsiderRow[]; summary: InsiderSummary | null }
+  institutional?: SourceMeta & { rows: HolderRow[] }
+  short?: SourceMeta & { rows: ShortRow[]; summary: { date: string; short: Receipt; change?: Receipt; days_to_cover?: Receipt } }
+}
+
+export type OptionContract = {
+  strike: number; type: 'call' | 'put'; bid: number | null; ask: number | null; mid: number | null; last: number | null
+  volume: number | null; open_interest: number | null; iv: number | null; delta: number | null
+}
+export type OptionsChain = SourceMeta & {
+  symbol: string; expiration: string; expirations: string[]; iv_unit: 'fraction' | 'as_reported'
+  summary: { underlying?: Receipt; atm_iv?: Receipt; put_call_volume?: Receipt; put_call_oi?: Receipt }
+  rows: { strike: number; call: OptionContract | null; put: OptionContract | null }[]
+  smile: { strike: number; call_iv: number | null; put_iv: number | null }[]
+}
+
+export type EarningsRow = {
+  date: string; symbol: string; name: string | null; eps_consensus: number | null; eps_previous: number | null
+  estimates: number | null; period: string | null; time: string | null; market_cap: number | null
+}
+export type EconomicRow = { date: string; country: string | null; event: string; actual: string | null; consensus: string | null; previous: string | null }
+export type MarketCalendar = {
+  days: number
+  errors: Record<string, string>
+  earnings?: SourceMeta & { total: number; rows: EarningsRow[] }
+  economic?: SourceMeta & { rows: EconomicRow[] }
+}
+
+export type FilingRow = { date: string; form: string; description: string | null; items: string | null; accession: string | null; url: string | null }
+export type Filings = SourceMeta & { symbol: string; rows: FilingRow[] }
+
+export type EtfHoldings = SourceMeta & {
+  symbol: string; listed: number; listed_weight?: Receipt
+  rows: { symbol: string; name: string | null; weight: Receipt }[]
+}
+
+export type YieldCurve = SourceMeta & {
+  date: string; month_ago_date: string | null; year_ago_date: string | null
+  unit_kind: 'fraction' | 'as_reported'; unit: string
+  tenors: { tenor: string; years: number; latest: Receipt; month_ago: number | null; year_ago: number | null }[]
+  spreads: { '10y_2y'?: Receipt; '10y_3m'?: Receipt }
+}
+
+export type PortfolioSide = 'buy' | 'sell' | 'split'
+export type PortfolioTransaction = { id: string; symbol: string; side: PortfolioSide; quantity: number; price: number; fees: number; date: string }
+export type PortfolioPosition = {
+  symbol: string; currency: string | null; lots: number
+  shares: Receipt; average_cost: Receipt; cost_basis: Receipt
+  price?: Receipt; value?: Receipt; unrealized?: Receipt; unrealized_pct?: Receipt; day_change?: Receipt; weight?: Receipt; realized?: Receipt
+}
+export type PortfolioTotal = {
+  currency: string | null; complete: boolean; missing: string[]
+  cost_basis?: Receipt; value?: Receipt; unrealized?: Receipt; unrealized_pct?: Receipt; day_change?: Receipt; realized?: Receipt
+}
+export type Portfolio = {
+  positions: PortfolioPosition[]
+  closed: { symbol: string; currency: string | null; realized: Receipt | null }[]
+  totals: PortfolioTotal[]
+  warnings: string[]
+  risk_holdings: { symbol: string; weight: number }[] | null
+  transactions: PortfolioTransaction[]
+}
+export const portfolioApi = {
+  get: () => get<Portfolio>('/portfolio', DATA_TIMEOUT),
+  add: (t: { symbol: string; side: PortfolioSide; quantity: number; price?: number; fees?: number; date?: string }) => send<PortfolioTransaction>('/portfolio/transactions', 'POST', t),
+  remove: (id: string) => send<{ deleted: string }>(`/portfolio/transactions/${enc(id)}`, 'DELETE'),
+}
+
+export const researchApi = {
+  ownership: (symbol: string) => get<Ownership>(`/research/ownership/${enc(symbol)}`, DATA_TIMEOUT),
+  options: (symbol: string, expiration?: string) =>
+    get<OptionsChain>(`/research/options/${enc(symbol)}${expiration ? `?expiration=${enc(expiration)}` : ''}`, DATA_TIMEOUT),
+  calendar: (days: number) => get<MarketCalendar>(`/research/calendar?days=${days}`, DATA_TIMEOUT),
+  filings: (symbol: string) => get<Filings>(`/research/filings/${enc(symbol)}`, DATA_TIMEOUT),
+  etf: (symbol: string) => get<EtfHoldings>(`/research/etf/${enc(symbol)}`, DATA_TIMEOUT),
+  curve: () => get<YieldCurve>('/research/curve', DATA_TIMEOUT),
+}
 
 // ---------------------------------------------------------------------------------------------
 // Price alerts

@@ -10,6 +10,7 @@ type Props = {
   yLabel?: (y: number) => string
   markers?: { x: number; label: string; color?: string }[]
   zeroLine?: boolean
+  xTicks?: number[] // where to label the x-axis, when round numbers don't suit it
 }
 
 function niceTicks(min: number, max: number, count = 5): number[] {
@@ -22,7 +23,7 @@ function niceTicks(min: number, max: number, count = 5): number[] {
   return out
 }
 
-export function XYChart({ series, height = 240, xLabel = (x) => x.toFixed(0), yLabel = (y) => y.toFixed(2), markers = [], zeroLine = true }: Props) {
+export function XYChart({ series, height = 240, xLabel = (x) => x.toFixed(0), yLabel = (y) => y.toFixed(2), markers = [], zeroLine = true, xTicks }: Props) {
   const all = series.flatMap((s) => s.points)
   if (!all.length) return <p className="muted">No data.</p>
   const W = 640
@@ -58,7 +59,7 @@ export function XYChart({ series, height = 240, xLabel = (x) => x.toFixed(0), yL
             <text x={pad.l - 6} y={sy(t) + 3} textAnchor="end" className="xychart__tick">{yLabel(t)}</text>
           </g>
         ))}
-        {niceTicks(x0, x1, 6).map((t) => (
+        {(xTicks ?? niceTicks(x0, x1, 6)).map((t) => (
           <text key={`x${t}`} x={sx(t)} y={H - 8} textAnchor="middle" className="xychart__tick">{xLabel(t)}</text>
         ))}
         {zeroLine && y0 < 0 && y1 > 0 && <line x1={pad.l} x2={W - pad.r} y1={sy(0)} y2={sy(0)} className="xychart__zero" />}

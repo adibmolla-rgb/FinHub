@@ -29,7 +29,10 @@ server = MCPServer(
         "finhub_backtest to test a trading rule with costs, next-bar fills, walk-forward and a deflated "
         "Sharpe ratio, finhub_portfolio_risk for VaR/ES and correlations, finhub_price_option for "
         "option values and Greeks, finhub_fundamentals for statements and ratios, finhub_macro for OECD "
-        "macro series, and finhub_screen to filter a universe of stocks. Fractions are fractions: 0.05 = 5%. Results include where each number came from and warnings; report "
+        "macro series, finhub_screen to filter a universe of stocks, finhub_ownership for insider trades, holders "
+        "and short interest, finhub_options_chain for a live chain, finhub_calendar for earnings and economic "
+        "events, finhub_filings for SEC filings, finhub_etf_holdings for an ETF's largest holdings and "
+        "finhub_yield_curve for US Treasury yields, and finhub_portfolio for the user's own recorded holdings. Fractions are fractions: 0.05 = 5%. Results include where each number came from and warnings; report "
         "those warnings to the user rather than hiding them. The finhub_arena_* tools trade in a SIMULATED "
         "market with bots (no real money) for practice and experiments. This is research, not financial advice."
     ),
@@ -194,6 +197,65 @@ def finhub_macro(country: str = "US") -> dict:
 
 
 @server.tool(annotations=READ_ONLY)
+def finhub_portfolio() -> dict:
+    """The user's own recorded holdings at live prices: shares, FIFO cost basis, value, profit, weights
+    and totals per currency. These are personal figures, so only fetch them when the user asks about their
+    portfolio. A total is missing when a holding has no live price (see warnings); currencies are never
+    added together. Dividends aren't recorded, so returns are price returns. Trades are entered in the app."""
+    return _call("GET", "/portfolio")
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_ownership(symbol: str) -> dict:
+    """Insider trades (SEC Form 4), largest institutional holders (13F) and short interest for a
+    ticker. Insider totals count open-market or private trades in common stock only; grants, exercises,
+    gifts and tax withholding are excluded. Check each row's dates: 13F and short data lag. Sections that
+    failed are named under errors."""
+    return _call("GET", f"/research/ownership/{symbol}")
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_options_chain(symbol: str, expiration: str | None = None) -> dict:
+    """One expiration of a ticker's live options chain (YYYY-MM-DD; default: the first a week or more
+    out), plus at-the-money implied vol and put/call ratios. All expirations are listed. Implied vol is a
+    fraction (0.25 = 25%) and null when the provider didn't declare its unit. Quotes can be delayed."""
+    return _call("GET", f"/research/options/{symbol}", params={"expiration": expiration} if expiration else None)
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_calendar(days: int = 7, symbols: list[str] | None = None, limit: int = 100) -> dict:
+    """Upcoming earnings and economic events for the next 1 to 31 days. Earnings are listed by date
+    then market cap; pass symbols to filter them, and limit caps how many come back. Economic figures stay
+    as the provider's text, and event times have no stated time zone. EPS is as reported."""
+    params: dict = {"days": days, "limit": limit}
+    if symbols:
+        params["symbols"] = ",".join(symbols)
+    return _call("GET", "/research/calendar", params=params)
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_filings(symbol: str) -> dict:
+    """A US-listed company's latest SEC filings, with form type, date, accession number and a link to
+    each document."""
+    return _call("GET", f"/research/filings/{symbol}")
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_etf_holdings(symbol: str) -> dict:
+    """An ETF's largest holdings and their weights. This is only part of the fund: `listed` says how
+    many holdings the provider published and `listed_weight` how much of the fund they cover."""
+    return _call("GET", f"/research/etf/{symbol}")
+
+
+@server.tool(annotations=READ_ONLY)
+def finhub_yield_curve() -> dict:
+    """US Treasury par yields by maturity for the latest day, the same curve about a month and a year
+    earlier, and the 10y-2y and 10y-3m spreads in basis points. unit_kind 'fraction' means 0.042 = 4.2%;
+    'as_reported' means the provider declared no unit: quote it verbatim."""
+    return _call("GET", "/research/curve")
+
+
+@server.tool(annotations=READ_ONLY)
 def finhub_screen(
     universe: Literal["large_caps", "watchlist", "custom"] = "large_caps",
     symbols: list[str] | None = None,
@@ -210,7 +272,9 @@ def finhub_screen(
     Changes and distances are FRACTIONS: min_change=0.02 means up at least 2% today; max_from_high=0.05
     means within 5% of the 52-week high; min_from_low=0.2 means at least 20% above the 52-week low.
     min_market_cap is in currency units (1e11 = 100bn). Tickers lacking data for a set filter are
-    excluded; tickers with no quote are listed under 'failed'."""
+    excluded; tickers with no quote are listed under 'failed'. Passing symbols screens those tickers."""
+    if symbols and universe == "large_caps":
+        universe = "custom"
     body = {k: v for k, v in locals().items() if v is not None}
     body.setdefault("sectors", [])
     res = _call("POST", "/screen", json=body)

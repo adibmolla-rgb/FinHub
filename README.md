@@ -43,7 +43,7 @@ Free, open source (Apache 2.0), no account. Windows, macOS and Linux.
   built-in simulators (`SIM`, `ARENA`).
 - **Not financial advice.** Analytics and AI answers are research tools; check them.
 - **Not a Bloomberg replacement.** Data comes from free public providers (Yahoo Finance, Cboe, Nasdaq,
-  TMX, SEC filings, OECD). Quotes can be delayed, coverage outside US large caps is thinner, and
+  TMX, SEC filings, OECD, the US Treasury). Quotes can be delayed, coverage outside US large caps is thinner, and
   providers change or break without notice. FinHub falls back to the next provider and tells you when
   it does.
 - **Not a full-market screener.** No free source offers one, so `SCREEN` covers a built-in list of
@@ -61,6 +61,13 @@ Free, open source (Apache 2.0), no account. Windows, macOS and Linux.
 | `AAPL` | Quote, candlestick chart (SMA, EMA, Bollinger, RSI), company profile and news |
 | `FA AAPL` | Income statement, balance sheet, cash flow and key ratios |
 | `MACRO GB` | OECD inflation, unemployment, interest rates and real GDP for a country |
+| `PORT BUY AAPL 10 150` | Your own record of trades, valued at live prices: cost basis, profit, weights, and one click to `RISK`. It can't place orders |
+| `OWN AAPL` | Insider trades, largest institutional holders and short interest |
+| `CHAIN AAPL` | Live options chain with a volatility smile, at-the-money implied vol and put/call ratios |
+| `CAL` | Upcoming earnings and economic events |
+| `FILINGS AAPL` | Latest SEC filings with links to the documents |
+| `ETF SPY` | An ETF's largest holdings and their weights |
+| `CURVE` | US Treasury yield curve, with spreads and comparisons a month and a year back |
 | `SCREEN` | Filter large caps / your watchlist / any tickers by price, day move, size, 52-week range, sector |
 | `CMP AAPL MSFT NVDA` | Performance, volatility, Sharpe, drawdown and correlation, side by side |
 | `BACKTEST SPY sma 20 50` | A backtest with costs, look-ahead check, walk-forward, deflated Sharpe and a parameter map |
@@ -88,7 +95,8 @@ Details, troubleshooting and uninstalling: [docs/INSTALL.md](docs/INSTALL.md).
 
 ## Use it from Claude
 
-FinHub is an MCP server with 15 tools (quotes, history, fundamentals, macro, screener, backtests,
+FinHub is an MCP server with 22 tools (quotes, history, fundamentals, macro, ownership, options chains,
+calendars, filings, ETF holdings, the yield curve, your recorded holdings, screener, backtests,
 portfolio risk, option pricing, alerts, watchlist, and trading in the simulated arena). Type `MCP` in
 the app for the exact setup line for your computer, or see [docs/AI_ASSISTANTS.md](docs/AI_ASSISTANTS.md).
 Claude Code opened in this repository connects automatically via [.mcp.json](.mcp.json).
@@ -100,11 +108,12 @@ what that means:
 
 | Area | Status |
 |---|---|
-| Analytics maths (backtester, risk, options, indicators, simulator, receipts) | ✅ 124 automated tests, many against textbook and reference values |
+| Analytics maths (backtester, risk, options, indicators, simulator, receipts) | ✅ 262 automated tests across the app, backend and data engine, many against textbook and reference values |
 | App, backend and engines on Windows, macOS, Linux | ✅ Built and tested in CI on all three on every change |
-| Installer on a clean machine | ✅ Linux `.deb` installed and run as a fresh user (self-setup, data-engine install, clean shutdown). Windows/macOS installers build in CI but were not hand-installed |
+| Installer on a clean machine | ✅ Linux `.deb` installed and run as a fresh user (self-setup, data-engine install, clean shutdown). Windows installer installed and opened by hand in November 2026. The macOS installer builds in CI but was not hand-installed |
 | MCP server | ✅ Tested end to end over stdio, including an agent trading in the arena |
-| Live market data, fundamentals, macro, screener against real providers | ⚠️ **Not yet seen working live.** Provider fallback, error reporting and every screen are tested with recorded or synthetic data |
+| Live market data, fundamentals, macro and research panels against real providers | ✅ Seen working on Windows in November 2026. Free providers can still change or break without notice |
+| Screener against real providers | ✅ Seen working on Windows in November 2026 (61 of 61 large caps quoted) |
 | AI agent answering with a real API key | ⚠️ Requests verified to reach Anthropic's API (rejected only for a placeholder key) |
 
 If something fails against live data, the error panels name each provider tried and why it failed,

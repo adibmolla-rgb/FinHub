@@ -165,3 +165,49 @@ describe('index tickers', () => {
     expect(runCommand('^')).toMatchObject({ kind: 'error' })
   })
 })
+
+describe('research commands', () => {
+  it('parses each research panel', () => {
+    expect(runCommand('own aapl')).toMatchObject({ kind: 'research', view: { view: 'own', symbol: 'AAPL' } })
+    expect(runCommand('FILINGS MSFT')).toMatchObject({ kind: 'research', view: { view: 'filings', symbol: 'MSFT' } })
+    expect(runCommand('ETF SPY')).toMatchObject({ kind: 'research', view: { view: 'etf', symbol: 'SPY' } })
+    expect(runCommand('CURVE')).toMatchObject({ kind: 'research', view: { view: 'curve' } })
+    expect(runCommand('CHAIN AAPL')).toMatchObject({ kind: 'research', view: { view: 'chain', symbol: 'AAPL' } })
+    expect(runCommand('CHAIN AAPL 2027-01-15')).toMatchObject({ kind: 'research', view: { view: 'chain', symbol: 'AAPL', expiration: '2027-01-15' } })
+    expect(runCommand('CAL')).toMatchObject({ kind: 'research', view: { view: 'cal', days: 7 } })
+    expect(runCommand('CAL 14')).toMatchObject({ kind: 'research', view: { view: 'cal', days: 14 } })
+  })
+
+  it('explains bad research commands', () => {
+    for (const bad of ['OWN', 'FILINGS', 'ETF', 'CHAIN', 'CHAIN AAPL soon', 'CAL 0', 'CAL 32', 'CAL 1.5', 'CAL soon', 'OWN bad$']) {
+      expect(runCommand(bad).kind, bad).toBe('error')
+    }
+  })
+
+  it('still reaches tickers that share a name with a command', () => {
+    expect(runCommand('CAL').kind).toBe('research')
+    expect(runCommand('EQ CAL')).toMatchObject({ kind: 'ticker', symbol: 'CAL' })
+  })
+
+  it('lists research commands for HELP and suggestions', () => {
+    expect(suggest('OW').map((c) => c.name)).toContain('OWN')
+    expect(suggest('CU').map((c) => c.name)).toContain('CURVE')
+  })
+})
+
+describe('portfolio command', () => {
+  it('opens the panel and records trades', () => {
+    expect(runCommand('PORT')).toEqual({ kind: 'portfolio', message: 'Portfolio' })
+    expect(runCommand('port buy aapl 10 150.25')).toMatchObject({ kind: 'portfolio', add: { symbol: 'AAPL', side: 'buy', quantity: 10, price: 150.25 } })
+    expect(runCommand('PORT SELL AAPL 2.5 180 2026-03-01 fee=1.50')).toMatchObject({ kind: 'portfolio', add: { side: 'sell', quantity: 2.5, price: 180, date: '2026-03-01', fees: 1.5 } })
+    expect(runCommand('PORT SPLIT NVDA 10 2026-06-10')).toMatchObject({ kind: 'portfolio', add: { side: 'split', quantity: 10, date: '2026-06-10' } })
+    expect(runCommand('PORT BUY AAPL 10 0')).toMatchObject({ add: { price: 0 } })
+  })
+
+  it('refuses trades it cannot read rather than recording a guess', () => {
+    for (const bad of ['PORT HOLD AAPL 1 1', 'PORT BUY', 'PORT BUY AAPL', 'PORT BUY AAPL 10', 'PORT BUY AAPL ten 150', 'PORT BUY AAPL -1 150', 'PORT BUY AAPL 0 150',
+      'PORT BUY AAPL 10 -5', 'PORT BUY AAPL 10 cheap', 'PORT BUY bad$ 10 150', 'PORT BUY AAPL 10 150 tomorrow', 'PORT BUY AAPL 10 150 fee=x', 'PORT SPLIT NVDA 10 fee=1', 'PORT BUY AAPL Infinity 150']) {
+      expect(runCommand(bad).kind, bad).toBe('error')
+    }
+  })
+})
